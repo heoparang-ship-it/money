@@ -20,8 +20,9 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'csv'}
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'xcom-sojin-secret-2026'
-app.config['SQLALCHEMY_DATABASE_URI'] = (
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'xcom-sojin-secret-2026')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    'DATABASE_URL',
     'sqlite:///' + os.path.join(BASE_DIR, 'instance', 'db.sqlite')
 )
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -532,7 +533,8 @@ def init_db():
         print('관리자 계정 생성: admin / admin1234')
 
 
+with app.app_context():
+    init_db()
+
 if __name__ == '__main__':
-    with app.app_context():
-        init_db()
-    app.run(host='0.0.0.0', port=5050, debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5050)), debug=True)
