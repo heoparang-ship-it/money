@@ -22,10 +22,10 @@ ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'csv'}
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'xcom-sojin-secret-2026')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
-    'DATABASE_URL',
-    'sqlite:///' + os.path.join(BASE_DIR, 'instance', 'db.sqlite')
-)
+_db_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(BASE_DIR, 'instance', 'db.sqlite'))
+if _db_url.startswith('postgres://'):
+    _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
@@ -404,7 +404,9 @@ def _get_upload_history():
 
 
 def _backup_db():
-    """저장 전 DB를 자동 백업 (최근 30개 유지)"""
+    """저장 전 DB를 자동 백업 (최근 30개 유지, SQLite만)"""
+    if 'postgresql' in app.config['SQLALCHEMY_DATABASE_URI']:
+        return  # PostgreSQL은 서버 측 백업 사용
     db_path = os.path.join(BASE_DIR, 'instance', 'db.sqlite')
     if not os.path.exists(db_path):
         return
