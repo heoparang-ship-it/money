@@ -329,10 +329,10 @@
   }
 
   datasets.push({
-    label: '누적', data: chartData.cumulative,
+    label: '일별 총액', data: chartData.daily_totals,
     borderColor: '#1a237e', backgroundColor: 'rgba(26,35,126,0.06)',
-    borderWidth: 2, type: 'line', fill: true, tension: 0.3,
-    pointRadius: 3, pointBackgroundColor: '#1a237e', yAxisID: 'y1', order: 1,
+    borderWidth: 2, type: 'line', fill: false, tension: 0.3,
+    pointRadius: 4, pointBackgroundColor: '#1a237e', yAxisID: 'y', order: 1,
   });
 
   new Chart(document.getElementById('spendChart'), {
@@ -345,11 +345,6 @@
           type: 'linear', position: 'left', stacked: true, beginAtZero: true,
           ticks: { callback: v => v.toLocaleString(), font: { size: 10 } },
           grid: { color: 'rgba(0,0,0,0.04)' },
-        },
-        y1: {
-          type: 'linear', position: 'right', beginAtZero: true,
-          ticks: { callback: v => v.toLocaleString(), font: { size: 10 } },
-          grid: { drawOnChartArea: false },
         },
         x: {
           ticks: { font: { size: 10 } },

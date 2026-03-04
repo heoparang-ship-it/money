@@ -172,6 +172,7 @@
         </tr>
       </thead>
       <tbody>
+        {% set totals = namespace(old=0, new=0, diff=0) %}
         {% set prev_name = namespace(val='') %}
         {% for row in comp_rows %}
         <tr{% if prev_name.val != row.name and not loop.first %} class="border-top border-2"{% endif %}>
@@ -194,8 +195,21 @@
             {% elif row.diff < 0 %}{{ row.diff|comma }}
             {% else %}0{% endif %}
           </td>
+          {% set totals.old = totals.old + row.old_amount %}
+          {% set totals.new = totals.new + row.new_amount %}
+          {% set totals.diff = totals.diff + row.diff %}
         </tr>
         {% endfor %}
+        <tr class="total-row">
+          <td class="sticky-col" colspan="2">합계</td>
+          <td class="amount-cell">{{ totals.old|comma }}</td>
+          <td class="amount-cell">{{ totals.new|comma }}</td>
+          <td class="amount-cell fw-bold {% if totals.diff > 0 %}text-danger{% elif totals.diff < 0 %}text-primary{% endif %}">
+            {% if totals.diff > 0 %}+{{ totals.diff|comma }}
+            {% elif totals.diff < 0 %}{{ totals.diff|comma }}
+            {% else %}0{% endif %}
+          </td>
+        </tr>
       </tbody>
     </table>
   </div>
@@ -376,10 +390,10 @@
   }
 
   datasets.push({
-    label: '누적', data: chartData.cumulative,
+    label: '일별 총액', data: chartData.daily_totals,
     borderColor: '#1a237e', backgroundColor: 'rgba(26,35,126,0.06)',
-    borderWidth: 2, type: 'line', fill: true, tension: 0.3,
-    pointRadius: 3, pointBackgroundColor: '#1a237e', yAxisID: 'y1', order: 1,
+    borderWidth: 2, type: 'line', fill: false, tension: 0.3,
+    pointRadius: 4, pointBackgroundColor: '#1a237e', yAxisID: 'y', order: 1,
   });
 
   new Chart(document.getElementById('spendChart'), {
@@ -392,11 +406,6 @@
           type: 'linear', position: 'left', stacked: true, beginAtZero: true,
           ticks: { callback: v => v.toLocaleString(), font: { size: 10 } },
           grid: { color: 'rgba(0,0,0,0.04)' },
-        },
-        y1: {
-          type: 'linear', position: 'right', beginAtZero: true,
-          ticks: { callback: v => v.toLocaleString(), font: { size: 10 } },
-          grid: { drawOnChartArea: false },
         },
         x: {
           ticks: { font: { size: 10 } },
