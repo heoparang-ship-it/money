@@ -112,10 +112,8 @@
         {% set prev_name = namespace(val='') %}
         {% for r in comp_rows %}
         <tr{% if prev_name.val != r.name and not loop.first %} class="border-top border-2"{% endif %}>
-          <td class="sticky-col fw-semibold">
-            {% if prev_name.val != r.name %}{{ r.name }}{% endif %}
-            {% set prev_name.val = r.name %}
-          </td>
+          <td class="sticky-col fw-semibold">{{ r.name }}</td>
+          {% set prev_name.val = r.name %}
           <td>
             {% if r.media == '네이버' %}<span class="badge bg-success badge-media">네이버</span>
             {% elif r.media == 'GFA' %}<span class="badge bg-info text-dark badge-media">GFA</span>
