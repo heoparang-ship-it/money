@@ -1,0 +1,215 @@
+{% extends 'base.html' %}
+{% block title %}파일 업로드 — 소진액 관리{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h5 class="mb-0 fw-bold"><i class="bi bi-upload me-2 text-success"></i>소진액 파일 업로드</h5>
+  <small class="text-muted">엑셀(.xlsx) 또는 CSV 파일을 업로드하면 날짜별로 자동 누적됩니다.</small>
+</div>
+
+<div class="row g-4">
+  <!-- 업로드 폼 -->
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header bg-white">
+        <i class="bi bi-file-earmark-arrow-up me-1 text-success"></i>파일 선택
+      </div>
+      <div class="card-body">
+        {% if not preview %}
+        <!-- Step 1: 파일 선택 & 미리보기 -->
+        <form method="POST" enctype="multipart/form-data" id="previewForm">
+          <input type="hidden" name="action" value="preview">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">파일 선택 (.xlsx / .csv)</label>
+            <input type="file" class="form-control" name="file" accept=".xlsx,.xls,.csv"
+                   required id="fileInput">
+          </div>
+          <div id="fileInfo" class="alert alert-info d-none">
+            <i class="bi bi-file-earmark me-1" id="fileIcon"></i>
+            <span id="fileName"></span>
+          </div>
+
+          <!-- CSV 날짜 선택 (JS로 토글) -->
+          <div id="csvDateGroup" class="mb-3 d-none">
+            <label class="form-label fw-semibold">
+              <i class="bi bi-calendar3 me-1 text-primary"></i>소진일 날짜 선택
+              <span class="text-danger">*</span>
+            </label>
+            <input type="date" class="form-control" name="target_date" id="targetDate"
+                   value="{{ today if today else '' }}">
+            <div class="form-text">CSV 파일에는 날짜 정보가 없으므로 해당 소진일을 직접 선택해주세요.</div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-search me-1"></i>파싱 미리보기
+          </button>
+        </form>
+
+        {% else %}
+        <!-- Step 2: 미리보기 확인 -->
+        <div class="alert alert-success">
+          <i class="bi bi-check-circle me-1"></i>
+          파일 파싱 완료! 아래 내용을 확인 후 저장하세요.
+        </div>
+        <table class="table table-sm table-bordered mb-3">
+          <tr><th style="width:120px">발견된 날짜</th>
+              <td>{% for d in preview.dates %}
+                <span class="badge bg-primary me-1">{{ d.month }}월 {{ d.day }}일</span>
+              {% endfor %}</td>
+          </tr>
+          <tr><th>레코드 수</th><td><strong>{{ preview.record_count }}</strong>개</td></tr>
+          <tr><th>총 소진액</th><td><strong class="text-primary">{{ preview.total_amount|comma }}</strong>원</td></tr>
+          <tr><th>광고주 수</th><td>{{ preview.advertisers|length }}개</td></tr>
+          {% if preview.medias is defined and preview.medias %}
+          <tr><th>매체 분류</th>
+              <td>{% for m in preview.medias %}
+                {% if m == '네이버' %}<span class="badge bg-success me-1">네이버</span>
+                {% elif m == 'GFA' %}<span class="badge bg-info text-dark me-1">GFA</span>
+                {% elif m == 'AD' %}<span class="badge bg-warning text-dark me-1">AD</span>
+                {% else %}<span class="badge bg-secondary me-1">{{ m }}</span>{% endif %}
+              {% endfor %}</td>
+          </tr>
+          {% endif %}
+        </table>
+
+        <details class="mb-3">
+          <summary class="text-muted small cursor-pointer">광고주 목록 보기</summary>
+          <div class="mt-2">
+            {% for name in preview.advertisers %}
+            <span class="badge bg-light text-dark border me-1 mb-1">{{ name }}</span>
+            {% endfor %}
+          </div>
+        </details>
+
+        <div class="d-flex gap-2">
+          <form method="POST">
+            <input type="hidden" name="action" value="save">
+            <button type="submit" class="btn btn-success">
+              <i class="bi bi-floppy me-1"></i>DB에 저장
+            </button>
+          </form>
+          <form method="POST">
+            <input type="hidden" name="action" value="cancel">
+            <button type="submit" class="btn btn-outline-secondary">
+              <i class="bi bi-x-circle me-1"></i>취소
+            </button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 형식 안내 -->
+    <div class="card mt-3">
+      <div class="card-header bg-white">
+        <i class="bi bi-info-circle me-1 text-info"></i>파일 형식 안내
+      </div>
+      <div class="card-body small text-muted">
+        <h6 class="fw-bold text-dark mb-2">
+          <i class="bi bi-file-earmark-excel text-success me-1"></i>엑셀 (.xlsx)
+        </h6>
+        <ul class="mb-3">
+          <li><strong>2행</strong>: 날짜 헤더 (예: <code>3월 1일 소진액</code>)</li>
+          <li><strong>3행</strong>: 컬럼 헤더 (NO., 광고주ID, 계정ID, 광고주명, 매체, 소진액)</li>
+          <li><strong>4행~</strong>: 데이터, 여러 날짜 나란히 배치 가능</li>
+        </ul>
+
+        <h6 class="fw-bold text-dark mb-2">
+          <i class="bi bi-filetype-csv text-info me-1"></i>CSV (네이버 에이전트 실적 리포트)
+        </h6>
+        <ul class="mb-0">
+          <li>네이버 광고시스템에서 다운로드한 <strong>에이전트 실적 CSV</strong></li>
+          <li>매체 자동 분류: 네이버(검색) / GFA(성과형DA) / AD(ADVoost)</li>
+          <li>CSV에는 날짜가 없으므로 <strong>날짜를 직접 선택</strong>해야 합니다</li>
+          <li>같은 날짜/광고주/매체 데이터는 덮어씌워집니다 (upsert)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 업로드 이력 -->
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header bg-white">
+        <i class="bi bi-clock-history me-1"></i>최근 업로드 이력
+      </div>
+      <div class="card-body p-0">
+        {% if upload_history %}
+        <div class="list-group list-group-flush">
+          {% for u in upload_history %}
+          <div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="fw-semibold small">
+                {% if u.filename.endswith('.csv') %}
+                <i class="bi bi-filetype-csv text-info me-1"></i>
+                {% else %}
+                <i class="bi bi-file-earmark-excel text-success me-1"></i>
+                {% endif %}
+                {{ u.filename }}
+              </span>
+              <span class="badge bg-secondary">{{ u.records_count }}건</span>
+            </div>
+            <small class="text-muted">
+              {{ u.uploaded_at.strftime('%Y.%m.%d %H:%M') }}
+            </small>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-inbox d-block fs-3 mb-2"></i>
+          업로드 이력이 없습니다.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const fileInput = document.getElementById('fileInput');
+const csvDateGroup = document.getElementById('csvDateGroup');
+const fileInfo = document.getElementById('fileInfo');
+const fileName = document.getElementById('fileName');
+const fileIcon = document.getElementById('fileIcon');
+const targetDate = document.getElementById('targetDate');
+
+// 오늘 날짜 기본값
+if (targetDate && !targetDate.value) {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  targetDate.value = `${yyyy}-${mm}-${dd}`;
+}
+
+fileInput?.addEventListener('change', function() {
+  if (!this.files[0]) return;
+
+  const file = this.files[0];
+  const ext = file.name.split('.').pop().toLowerCase();
+  const isCSV = ext === 'csv';
+
+  // 파일 정보 표시
+  fileName.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+  fileIcon.className = isCSV
+    ? 'bi bi-filetype-csv text-info me-1'
+    : 'bi bi-file-earmark-excel text-success me-1';
+  fileInfo.className = isCSV
+    ? 'alert alert-info'
+    : 'alert alert-success';
+  fileInfo.classList.remove('d-none');
+
+  // CSV면 날짜 선택 표시
+  if (isCSV) {
+    csvDateGroup.classList.remove('d-none');
+    targetDate.required = true;
+  } else {
+    csvDateGroup.classList.add('d-none');
+    targetDate.required = false;
+  }
+});
+</script>
+{% endblock %}

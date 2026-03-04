@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>로그인 — 소진액 관리</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  <style>
+    body { background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%); min-height: 100vh;
+           display: flex; align-items: center; justify-content: center; }
+    .login-card { width: 100%; max-width: 400px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); }
+    .login-header { background: #1a237e; border-radius: 16px 16px 0 0; color: #fff; padding: 2rem; text-align: center; }
+    .login-body { padding: 2rem; }
+  </style>
+</head>
+<body>
+  <div class="login-card card border-0">
+    <div class="login-header">
+      <i class="bi bi-bar-chart-fill fs-1 mb-2 d-block"></i>
+      <h4 class="mb-0 fw-bold">소진액 관리 시스템</h4>
+      <p class="mb-0 mt-1 text-white-50 small">마케팅 광고 소진액 체크</p>
+    </div>
+    <div class="login-body">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+      {% endwith %}
+
+      <form method="POST">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">아이디</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-person"></i></span>
+            <input type="text" class="form-control" name="username"
+                   placeholder="아이디를 입력하세요" required autofocus>
+          </div>
+        </div>
+        <div class="mb-4">
+          <label class="form-label fw-semibold">비밀번호</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+            <input type="password" class="form-control" name="password"
+                   placeholder="비밀번호를 입력하세요" required>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+          <i class="bi bi-box-arrow-in-right me-2"></i>로그인
+        </button>
+      </form>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

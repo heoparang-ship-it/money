@@ -1,0 +1,308 @@
+{% extends 'base.html' %}
+{% block title %}담당자 현황 — 소진액 관리{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <h5 class="mb-0 fw-bold"><i class="bi bi-people-fill me-2 text-primary"></i>담당자 소진액 현황</h5>
+  <a href="{{ url_for('admin_accounts') }}" class="btn btn-outline-primary btn-sm">
+    <i class="bi bi-person-gear me-1"></i>계정 관리
+  </a>
+</div>
+
+{% if not staff %}
+<div class="card">
+  <div class="card-body text-center py-5 text-muted">
+    <i class="bi bi-people fs-1 d-block mb-3"></i>
+    <p>등록된 담당자가 없습니다.</p>
+    <a href="{{ url_for('admin_accounts') }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-person-plus me-1"></i>계정 추가하기
+    </a>
+  </div>
+</div>
+{% else %}
+
+<!-- 담당자 탭 + 필터 통합 -->
+<div class="card mb-3">
+  <div class="card-body py-2 pb-0">
+    <ul class="nav nav-tabs" id="staffTabs">
+      {% for s in staff %}
+      <li class="nav-item">
+        <a class="nav-link {% if selected_user and selected_user.id == s.id %}active{% endif %} fw-semibold"
+           href="{{ url_for('admin', user_id=s.id, year=year, month=month, media=media_filter, view=view_mode) }}">
+          {{ s.display_name }}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+{% if selected_user %}
+<!-- 필터 바 -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+      <div class="btn-group btn-group-sm">
+        <a href="{{ url_for('admin', user_id=selected_user.id, year=year, month=month, media=media_filter, view='daily') }}"
+           class="btn btn-outline-secondary {% if view_mode == 'daily' %}active{% endif %}">일별</a>
+        <a href="{{ url_for('admin', user_id=selected_user.id, year=year, month=month, media=media_filter, view='monthly') }}"
+           class="btn btn-outline-secondary {% if view_mode == 'monthly' %}active{% endif %}">월간</a>
+      </div>
+      <div class="btn-group btn-group-sm">
+        <a href="{{ url_for('admin', user_id=selected_user.id, year=prev_year, month=prev_month, media=media_filter, view=view_mode) }}"
+           class="btn btn-outline-secondary"><i class="bi bi-chevron-left"></i></a>
+        <span class="btn btn-outline-secondary disabled fw-semibold">{{ year }}.{{ '%02d'|format(month) }}</span>
+        <a href="{{ url_for('admin', user_id=selected_user.id, year=next_year, month=next_month, media=media_filter, view=view_mode) }}"
+           class="btn btn-outline-secondary"><i class="bi bi-chevron-right"></i></a>
+      </div>
+      <div class="btn-group btn-group-sm">
+        {% for m, label in [('all','전체'), ('네이버','네이버'), ('GFA','GFA'), ('AD','AD')] %}
+        <a href="{{ url_for('admin', user_id=selected_user.id, year=year, month=month, media=m, view=view_mode) }}"
+           class="btn btn-outline-primary {% if media_filter == m %}active{% endif %}">{{ label }}</a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if not dates %}
+<div class="card">
+  <div class="card-body text-center py-4 text-muted">
+    <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+    <p class="mb-0">{{ selected_user.display_name }}님의 {{ year }}년 {{ month }}월 데이터가 없습니다.</p>
+  </div>
+</div>
+{% else %}
+
+<!-- 요약 -->
+<div class="card mb-3">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex flex-wrap gap-3 align-items-center">
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">총 소진액</span>
+        <span class="fw-bold text-primary">{{ monthly_total|comma }}원</span>
+      </div>
+      <span class="text-muted">|</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">집계</span>
+        <span class="fw-bold text-success">{{ dates|length }}일</span>
+      </div>
+      <span class="text-muted">|</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">광고주</span>
+        <span class="fw-bold text-info">{{ adv_map|length }}개</span>
+      </div>
+      <span class="text-muted">|</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">일평균</span>
+        <span class="fw-bold text-warning">
+          {% if dates|length > 0 %}{{ (monthly_total // dates|length)|comma }}원{% else %}—{% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 차트 -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <div style="height:200px;">
+      <canvas id="spendChart"></canvas>
+    </div>
+  </div>
+</div>
+
+{% if view_mode == 'daily' %}
+<!-- 일별 테이블 -->
+<div class="card">
+  <div class="card-header bg-white py-2">
+    <span class="fw-semibold small"><i class="bi bi-table me-1"></i>{{ selected_user.display_name }} — 날짜별 상세</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover table-bordered mb-0 align-middle">
+      <thead class="thead-sticky">
+        <tr>
+          <th class="sticky-col" style="min-width:120px">광고주명</th>
+          <th style="min-width:60px">매체</th>
+          {% for d in dates %}
+          <th class="amount-cell" style="min-width:85px">{{ d|date_kr }}</th>
+          {% endfor %}
+          <th class="amount-cell" style="min-width:90px">합계</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set col_totals = {} %}
+        {% for d in dates %}{% set _ = col_totals.update({d: 0}) %}{% endfor %}
+        {% set grand_total = [0] %}
+
+        {% for adv_id, adv_name in adv_map.items()|sort(attribute='1') %}
+          {% for media in medias %}
+            {% if table[adv_id][media] %}
+            {% set ns = namespace(row_sum=0) %}
+            {% for d in dates %}{% set ns.row_sum = ns.row_sum + table[adv_id][media][d] %}{% endfor %}
+            {% if ns.row_sum > 0 %}
+            {% set row_total = [0] %}
+            <tr>
+              <td class="sticky-col fw-semibold">{{ adv_name }}</td>
+              <td>
+                {% if media == '네이버' %}<span class="badge bg-success badge-media">네이버</span>
+                {% elif media == 'GFA' %}<span class="badge bg-info text-dark badge-media">GFA</span>
+                {% elif media == 'AD' %}<span class="badge bg-warning text-dark badge-media">AD</span>
+                {% else %}<span class="badge bg-secondary badge-media">{{ media }}</span>{% endif %}
+              </td>
+              {% for d in dates %}
+                {% set amt = table[adv_id][media][d] %}
+                {% set _ = row_total.append(row_total.pop() + amt) %}
+                {% set _ = col_totals.update({d: col_totals.get(d, 0) + amt}) %}
+                <td class="amount-cell {% if amt == 0 %}text-muted{% endif %}">
+                  {{ amt|comma if amt else '—' }}
+                </td>
+              {% endfor %}
+              {% set _ = grand_total.append(grand_total.pop() + row_total[0]) %}
+              <td class="amount-cell fw-semibold text-primary">{{ row_total[0]|comma }}</td>
+            </tr>
+            {% endif %}
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+        <tr class="total-row">
+          <td class="sticky-col" colspan="2">합계</td>
+          {% for d in dates %}
+          <td class="amount-cell">{{ col_totals.get(d, 0)|comma }}</td>
+          {% endfor %}
+          <td class="amount-cell text-primary">{{ grand_total[0]|comma }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<!-- 월간 테이블 -->
+<div class="card">
+  <div class="card-header bg-white py-2">
+    <span class="fw-semibold small"><i class="bi bi-bar-chart me-1"></i>{{ selected_user.display_name }} — 광고주별 누적</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover table-bordered mb-0 align-middle">
+      <thead class="thead-sticky">
+        <tr>
+          <th class="sticky-col" style="min-width:140px">광고주명</th>
+          <th>매체</th>
+          <th class="amount-cell">합계</th>
+          <th class="amount-cell" style="min-width:150px">비율</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set grand_total = [0] %}
+        {% set rows = [] %}
+        {% for adv_id, adv_name in adv_map.items()|sort(attribute='1') %}
+          {% for media in medias %}
+            {% if table[adv_id][media] %}
+            {% set total = namespace(v=0) %}
+            {% for d in dates %}{% set total.v = total.v + table[adv_id][media][d] %}{% endfor %}
+            {% if total.v > 0 %}
+              {% set _ = rows.append({'name': adv_name, 'media': media, 'total': total.v}) %}
+              {% set _ = grand_total.append(grand_total.pop() + total.v) %}
+            {% endif %}
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+
+        {% for row in rows|sort(attribute='total', reverse=True) %}
+        <tr>
+          <td class="sticky-col fw-semibold">{{ row.name }}</td>
+          <td>
+            {% if row.media == '네이버' %}<span class="badge bg-success badge-media">네이버</span>
+            {% elif row.media == 'GFA' %}<span class="badge bg-info text-dark badge-media">GFA</span>
+            {% elif row.media == 'AD' %}<span class="badge bg-warning text-dark badge-media">AD</span>
+            {% else %}<span class="badge bg-secondary badge-media">{{ row.media }}</span>{% endif %}
+          </td>
+          <td class="amount-cell fw-semibold text-primary">{{ row.total|comma }}</td>
+          <td class="amount-cell">
+            {% if grand_total[0] > 0 %}
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress flex-grow-1" style="height:5px">
+                <div class="progress-bar bg-primary"
+                     style="width:{{ (row.total / grand_total[0] * 100)|round(1) }}%"></div>
+              </div>
+              <span class="text-muted small" style="min-width:38px">
+                {{ (row.total / grand_total[0] * 100)|round(1) }}%
+              </span>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+          <td class="sticky-col" colspan="2">합계</td>
+          <td class="amount-cell text-primary">{{ grand_total[0]|comma }}</td>
+          <td class="amount-cell">100%</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  const chartData = {{ chart_data_json|safe if chart_data_json is defined else 'null' }};
+  if (!chartData) return;
+
+  const mediaColors = {
+    '네이버': { bg: 'rgba(40, 167, 69, 0.75)', border: '#28a745' },
+    'GFA':   { bg: 'rgba(23, 162, 184, 0.75)', border: '#17a2b8' },
+    'AD':    { bg: 'rgba(255, 193, 7, 0.75)',  border: '#ffc107' },
+  };
+  const defaultColor = { bg: 'rgba(108, 117, 125, 0.75)', border: '#6c757d' };
+  const datasets = [];
+
+  for (const [media, values] of Object.entries(chartData.media_series)) {
+    const c = mediaColors[media] || defaultColor;
+    datasets.push({
+      label: media, data: values,
+      backgroundColor: c.bg, borderColor: c.border, borderWidth: 1,
+      type: 'bar', stack: 'spend', yAxisID: 'y', order: 2,
+    });
+  }
+
+  datasets.push({
+    label: '누적', data: chartData.cumulative,
+    borderColor: '#1a237e', backgroundColor: 'rgba(26,35,126,0.06)',
+    borderWidth: 2, type: 'line', fill: true, tension: 0.3,
+    pointRadius: 3, pointBackgroundColor: '#1a237e', yAxisID: 'y1', order: 1,
+  });
+
+  new Chart(document.getElementById('spendChart'), {
+    data: { labels: chartData.labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        y: {
+          type: 'linear', position: 'left', stacked: true,
+          ticks: { callback: v => v.toLocaleString(), font: { size: 10 } },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+        },
+        y1: {
+          type: 'linear', position: 'right',
+          ticks: { callback: v => v.toLocaleString(), font: { size: 10 } },
+          grid: { drawOnChartArea: false },
+        },
+        x: { ticks: { font: { size: 10 } } },
+      },
+      plugins: {
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw.toLocaleString()}원` } },
+        legend: { position: 'top', labels: { usePointStyle: true, padding: 12, font: { size: 11 } } },
+      },
+    },
+  });
+})();
+</script>
+{% endblock %}

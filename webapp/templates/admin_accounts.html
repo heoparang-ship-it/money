@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+{% block title %}계정 관리 — 소진액 관리{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h5 class="mb-0 fw-bold"><i class="bi bi-person-gear me-2 text-primary"></i>계정 관리</h5>
+  <small class="text-muted">직원 계정을 생성하고 아이디/비밀번호를 담당자에게 전달하세요.</small>
+</div>
+
+<div class="row g-4">
+  <!-- 계정 생성 폼 -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-person-plus me-1 text-success"></i>새 계정 추가
+      </div>
+      <div class="card-body">
+        <form method="POST">
+          <input type="hidden" name="action" value="create">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">이름 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" name="display_name"
+                   placeholder="예: 홍길동" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">아이디 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" name="username"
+                   placeholder="예: hong123" required>
+            <div class="form-text">영문/숫자 조합 권장</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">비밀번호 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" name="password"
+                   placeholder="초기 비밀번호" required>
+            <div class="form-text">직원에게 전달할 비밀번호를 입력하세요.</div>
+          </div>
+          <div class="mb-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="is_admin" value="1" id="isAdmin">
+              <label class="form-check-label" for="isAdmin">
+                관리자 권한 부여
+              </label>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-success w-100">
+            <i class="bi bi-person-plus me-1"></i>계정 생성
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 계정 목록 -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-people me-1"></i>전체 계정 목록
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>이름</th>
+              <th>아이디</th>
+              <th>권한</th>
+              <th>생성일</th>
+              <th class="text-center">관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+            <tr>
+              <td class="fw-semibold">{{ u.display_name }}</td>
+              <td><code>{{ u.username }}</code></td>
+              <td>
+                {% if u.is_admin %}
+                <span class="badge bg-warning text-dark">관리자</span>
+                {% else %}
+                <span class="badge bg-secondary">담당자</span>
+                {% endif %}
+              </td>
+              <td class="text-muted small">{{ u.created_at.strftime('%Y.%m.%d') }}</td>
+              <td class="text-center">
+                <div class="d-flex gap-1 justify-content-center">
+                  <!-- 비밀번호 변경 -->
+                  <button class="btn btn-outline-primary btn-sm"
+                          onclick="showResetModal({{ u.id }}, '{{ u.display_name }}')">
+                    <i class="bi bi-key me-1"></i>비밀번호
+                  </button>
+                  <!-- 삭제 -->
+                  {% if u.id != current_user.id %}
+                  <button class="btn btn-outline-danger btn-sm"
+                          onclick="confirmDelete({{ u.id }}, '{{ u.display_name }}')">
+                    <i class="bi bi-trash me-1"></i>삭제
+                  </button>
+                  {% else %}
+                  <span class="btn btn-outline-secondary btn-sm disabled">본인</span>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 비밀번호 변경 모달 -->
+<div class="modal fade" id="resetModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold">비밀번호 변경</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST">
+        <input type="hidden" name="action" value="reset_password">
+        <input type="hidden" name="user_id" id="resetUserId">
+        <div class="modal-body">
+          <p class="text-muted small mb-2" id="resetUserName"></p>
+          <label class="form-label fw-semibold">새 비밀번호</label>
+          <input type="text" class="form-control" name="new_password"
+                 placeholder="새 비밀번호 입력" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check-lg me-1"></i>변경
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 삭제 확인 폼 (숨김) -->
+<form method="POST" id="deleteForm">
+  <input type="hidden" name="action" value="delete">
+  <input type="hidden" name="user_id" id="deleteUserId">
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showResetModal(userId, userName) {
+  document.getElementById('resetUserId').value = userId;
+  document.getElementById('resetUserName').textContent = userName + '님의 비밀번호를 변경합니다.';
+  new bootstrap.Modal(document.getElementById('resetModal')).show();
+}
+
+function confirmDelete(userId, userName) {
+  if (confirm(userName + ' 계정을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+    document.getElementById('deleteUserId').value = userId;
+    document.getElementById('deleteForm').submit();
+  }
+}
+</script>
+{% endblock %}
