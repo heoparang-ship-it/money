@@ -193,6 +193,20 @@ def dashboard():
     # 차트 데이터
     chart_data = _build_chart_data(spends, dates)
 
+    # 일별 총합 계산 (전일 대비 변동률 등)
+    daily_totals = defaultdict(int)
+    for s in spends:
+        daily_totals[s.date] += s.amount
+
+    # 전일 대비 변동률
+    day_change = None
+    day_change_pct = None
+    if len(dates) >= 2:
+        prev_total = daily_totals[dates[-2]]
+        curr_total = daily_totals[dates[-1]]
+        day_change = curr_total - prev_total
+        day_change_pct = round((day_change / prev_total * 100), 1) if prev_total else 0
+
     # 최근 2일 비교 데이터 (차액 테이블)
     display_dates = dates[-2:] if len(dates) >= 2 else dates
     comp_rows = []
@@ -219,6 +233,8 @@ def dashboard():
         dates=dates,
         display_dates=display_dates,
         comp_rows=comp_rows,
+        day_change=day_change,
+        day_change_pct=day_change_pct,
         adv_map=adv_map,
         table=table,
         medias=medias,
@@ -552,6 +568,20 @@ def admin():
     # 차트 데이터
     chart_data = _build_chart_data(spends, dates)
 
+    # 일별 총합 계산
+    daily_totals = defaultdict(int)
+    for s in spends:
+        daily_totals[s.date] += s.amount
+
+    # 전일 대비 변동률
+    day_change = None
+    day_change_pct = None
+    if len(dates) >= 2:
+        prev_total = daily_totals[dates[-2]]
+        curr_total = daily_totals[dates[-1]]
+        day_change = curr_total - prev_total
+        day_change_pct = round((day_change / prev_total * 100), 1) if prev_total else 0
+
     # 최근 2일 비교 데이터 (차액 테이블)
     display_dates = dates[-2:] if len(dates) >= 2 else dates
     comp_rows = []
@@ -580,6 +610,8 @@ def admin():
         dates=dates,
         display_dates=display_dates,
         comp_rows=comp_rows,
+        day_change=day_change,
+        day_change_pct=day_change_pct,
         adv_map=adv_map,
         table=table,
         medias=medias,

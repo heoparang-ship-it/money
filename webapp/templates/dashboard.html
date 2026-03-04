@@ -47,6 +47,7 @@
 <!-- 요약 -->
 <div class="card mb-3">
   <div class="card-body py-2 px-3">
+    {% if view_mode == 'daily' %}
     <div class="d-flex flex-wrap gap-3 align-items-center">
       <div class="d-flex align-items-center gap-2">
         <span class="text-muted small">총 소진액</span>
@@ -62,6 +63,29 @@
         <span class="text-muted small">광고주</span>
         <span class="fw-bold text-info">{{ adv_map|length }}개</span>
       </div>
+      {% if day_change_pct is not none %}
+      <span class="text-muted">|</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">전일 대비</span>
+        <span class="fw-bold {% if day_change_pct > 0 %}text-danger{% elif day_change_pct < 0 %}text-primary{% else %}text-muted{% endif %}">
+          {% if day_change_pct > 0 %}
+            <i class="bi bi-caret-up-fill"></i>+{{ day_change_pct }}%
+          {% elif day_change_pct < 0 %}
+            <i class="bi bi-caret-down-fill"></i>{{ day_change_pct }}%
+          {% else %}
+            0%
+          {% endif %}
+        </span>
+        <small class="text-muted">({% if day_change > 0 %}+{% endif %}{{ day_change|comma }}원)</small>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="d-flex flex-wrap gap-3 align-items-center">
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">누적 소진액</span>
+        <span class="fw-bold text-primary">{{ monthly_total|comma }}원</span>
+      </div>
       <span class="text-muted">|</span>
       <div class="d-flex align-items-center gap-2">
         <span class="text-muted small">일평균</span>
@@ -69,7 +93,18 @@
           {% if dates|length > 0 %}{{ (monthly_total // dates|length)|comma }}원{% else %}—{% endif %}
         </span>
       </div>
+      <span class="text-muted">|</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">집계</span>
+        <span class="fw-bold text-success">{{ dates|length }}일</span>
+      </div>
+      <span class="text-muted">|</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">광고주</span>
+        <span class="fw-bold text-info">{{ adv_map|length }}개</span>
+      </div>
     </div>
+    {% endif %}
   </div>
 </div>
 
