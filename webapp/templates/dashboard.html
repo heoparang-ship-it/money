@@ -83,10 +83,76 @@
 </div>
 
 {% if view_mode == 'daily' %}
-<!-- 일별 테이블 -->
+{% if comp_rows %}
+<!-- 차액 비교 테이블 (최근 2일) -->
 <div class="card">
   <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
-    <span class="fw-semibold small"><i class="bi bi-table me-1"></i>날짜별 상세</span>
+    <span class="fw-semibold small">
+      <i class="bi bi-arrow-left-right me-1"></i>
+      <span class="badge bg-secondary me-1">{{ display_dates[0]|date_kr }}</span>
+      vs
+      <span class="badge bg-primary ms-1">{{ display_dates[1]|date_kr }}</span>
+      비교
+    </span>
+    <small class="text-muted">단위: 원 · 차액 = 기존 − 신규</small>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover table-bordered mb-0 align-middle">
+      <thead class="thead-sticky">
+        <tr>
+          <th class="sticky-col" style="min-width:120px">광고주명</th>
+          <th style="min-width:60px">매체</th>
+          <th class="amount-cell" style="min-width:95px">{{ display_dates[0]|date_kr }}</th>
+          <th class="amount-cell" style="min-width:95px">{{ display_dates[1]|date_kr }}</th>
+          <th class="amount-cell" style="min-width:100px">차액</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set totals = namespace(old=0, new=0, diff=0) %}
+        {% for r in comp_rows %}
+        <tr>
+          <td class="sticky-col fw-semibold">{{ r.name }}</td>
+          <td>
+            {% if r.media == '네이버' %}<span class="badge bg-success badge-media">네이버</span>
+            {% elif r.media == 'GFA' %}<span class="badge bg-info text-dark badge-media">GFA</span>
+            {% elif r.media == 'AD' %}<span class="badge bg-warning text-dark badge-media">AD</span>
+            {% else %}<span class="badge bg-secondary badge-media">{{ r.media }}</span>{% endif %}
+          </td>
+          <td class="amount-cell {% if r.old_amount == 0 %}text-muted{% endif %}">
+            {{ r.old_amount|comma if r.old_amount else '—' }}
+          </td>
+          <td class="amount-cell {% if r.new_amount == 0 %}text-muted{% endif %}">
+            {{ r.new_amount|comma if r.new_amount else '—' }}
+          </td>
+          <td class="amount-cell fw-bold {% if r.diff > 0 %}text-danger{% elif r.diff < 0 %}text-primary{% else %}text-muted{% endif %}">
+            {% if r.diff > 0 %}+{{ r.diff|comma }}
+            {% elif r.diff < 0 %}{{ r.diff|comma }}
+            {% else %}0{% endif %}
+          </td>
+          {% set totals.old = totals.old + r.old_amount %}
+          {% set totals.new = totals.new + r.new_amount %}
+          {% set totals.diff = totals.diff + r.diff %}
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+          <td class="sticky-col" colspan="2">합계</td>
+          <td class="amount-cell">{{ totals.old|comma }}</td>
+          <td class="amount-cell">{{ totals.new|comma }}</td>
+          <td class="amount-cell fw-bold {% if totals.diff > 0 %}text-danger{% elif totals.diff < 0 %}text-primary{% endif %}">
+            {% if totals.diff > 0 %}+{{ totals.diff|comma }}
+            {% elif totals.diff < 0 %}{{ totals.diff|comma }}
+            {% else %}0{% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<!-- 단일 날짜 테이블 -->
+<div class="card">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+    <span class="fw-semibold small"><i class="bi bi-table me-1"></i>{{ display_dates[0]|date_kr }} 상세</span>
     <small class="text-muted">단위: 원</small>
   </div>
   <div class="table-responsive">
@@ -95,24 +161,16 @@
         <tr>
           <th class="sticky-col" style="min-width:120px">광고주명</th>
           <th style="min-width:60px">매체</th>
-          {% for d in dates %}
-          <th class="amount-cell" style="min-width:85px">{{ d|date_kr }}</th>
-          {% endfor %}
-          <th class="amount-cell" style="min-width:90px">합계</th>
+          <th class="amount-cell">소진액</th>
         </tr>
       </thead>
       <tbody>
-        {% set col_totals = {} %}
-        {% for d in dates %}{% set _ = col_totals.update({d: 0}) %}{% endfor %}
         {% set grand_total = [0] %}
-
         {% for adv_id, adv_name in adv_map.items()|sort(attribute='1') %}
           {% for media in medias %}
             {% if table[adv_id][media] %}
-            {% set ns = namespace(row_sum=0) %}
-            {% for d in dates %}{% set ns.row_sum = ns.row_sum + table[adv_id][media][d] %}{% endfor %}
-            {% if ns.row_sum > 0 %}
-            {% set row_total = [0] %}
+            {% set amt = table[adv_id][media].get(display_dates[0], 0) %}
+            {% if amt > 0 %}
             <tr>
               <td class="sticky-col fw-semibold">{{ adv_name }}</td>
               <td>
@@ -121,16 +179,8 @@
                 {% elif media == 'AD' %}<span class="badge bg-warning text-dark badge-media">AD</span>
                 {% else %}<span class="badge bg-secondary badge-media">{{ media }}</span>{% endif %}
               </td>
-              {% for d in dates %}
-                {% set amt = table[adv_id][media][d] %}
-                {% set _ = row_total.append(row_total.pop() + amt) %}
-                {% set _ = col_totals.update({d: col_totals.get(d, 0) + amt}) %}
-                <td class="amount-cell {% if amt == 0 %}text-muted{% endif %}">
-                  {{ amt|comma if amt else '—' }}
-                </td>
-              {% endfor %}
-              {% set _ = grand_total.append(grand_total.pop() + row_total[0]) %}
-              <td class="amount-cell fw-semibold text-primary">{{ row_total[0]|comma }}</td>
+              <td class="amount-cell fw-semibold text-primary">{{ amt|comma }}</td>
+              {% set _ = grand_total.append(grand_total.pop() + amt) %}
             </tr>
             {% endif %}
             {% endif %}
@@ -138,15 +188,13 @@
         {% endfor %}
         <tr class="total-row">
           <td class="sticky-col" colspan="2">합계</td>
-          {% for d in dates %}
-          <td class="amount-cell">{{ col_totals.get(d, 0)|comma }}</td>
-          {% endfor %}
           <td class="amount-cell text-primary">{{ grand_total[0]|comma }}</td>
         </tr>
       </tbody>
     </table>
   </div>
 </div>
+{% endif %}
 
 {% else %}
 <!-- 월간 테이블 -->

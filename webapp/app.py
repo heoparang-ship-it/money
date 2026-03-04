@@ -192,8 +192,32 @@ def dashboard():
     # 차트 데이터
     chart_data = _build_chart_data(spends, dates)
 
+    # 최근 2일 비교 데이터 (차액 테이블)
+    display_dates = dates[-2:] if len(dates) >= 2 else dates
+    comp_rows = []
+    if len(display_dates) == 2:
+        d_old, d_new = display_dates
+        for adv_id in adv_map:
+            for media in medias:
+                if not table[adv_id][media]:
+                    continue
+                old_amt = table[adv_id][media].get(d_old, 0)
+                new_amt = table[adv_id][media].get(d_new, 0)
+                if old_amt == 0 and new_amt == 0:
+                    continue
+                comp_rows.append({
+                    'name': adv_map[adv_id],
+                    'media': media,
+                    'old_amount': old_amt,
+                    'new_amount': new_amt,
+                    'diff': old_amt - new_amt,
+                })
+        comp_rows.sort(key=lambda x: abs(x['diff']), reverse=True)
+
     return render_template('dashboard.html',
         dates=dates,
+        display_dates=display_dates,
+        comp_rows=comp_rows,
         adv_map=adv_map,
         table=table,
         medias=medias,
