@@ -35,9 +35,13 @@
               <i class="bi bi-calendar3 me-1 text-primary"></i>소진일 날짜 선택
               <span class="text-danger">*</span>
             </label>
-            <input type="date" class="form-control" name="target_date" id="targetDate"
-                   value="{{ today if today else '' }}">
-            <div class="form-text">CSV 파일에는 날짜 정보가 없으므로 해당 소진일을 직접 선택해주세요.</div>
+            <input type="date" class="form-control border-primary" name="target_date" id="targetDate"
+                   value="{{ today if today else '' }}" style="font-size:1.1rem; font-weight:600;">
+            <div class="alert alert-warning mt-2 mb-0 py-2 small">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              <strong>반드시 해당 소진일 날짜를 정확히 선택해주세요!</strong>
+              CSV 파일에는 날짜 정보가 없으므로 여기서 선택한 날짜로 저장됩니다.
+            </div>
           </div>
 
           <button type="submit" class="btn btn-primary">

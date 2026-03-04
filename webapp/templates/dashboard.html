@@ -239,6 +239,7 @@
       label: media, data: values,
       backgroundColor: c.bg, borderColor: c.border, borderWidth: 1,
       type: 'bar', stack: 'spend', yAxisID: 'y', order: 2,
+      maxBarThickness: 80,
     });
   }
 
@@ -256,16 +257,19 @@
       interaction: { mode: 'index', intersect: false },
       scales: {
         y: {
-          type: 'linear', position: 'left', stacked: true,
+          type: 'linear', position: 'left', stacked: true, beginAtZero: true,
           ticks: { callback: v => v.toLocaleString(), font: { size: 10 } },
           grid: { color: 'rgba(0,0,0,0.04)' },
         },
         y1: {
-          type: 'linear', position: 'right',
+          type: 'linear', position: 'right', beginAtZero: true,
           ticks: { callback: v => v.toLocaleString(), font: { size: 10 } },
           grid: { drawOnChartArea: false },
         },
-        x: { ticks: { font: { size: 10 } } },
+        x: {
+          ticks: { font: { size: 10 } },
+          grid: { display: false },
+        },
       },
       plugins: {
         tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw.toLocaleString()}원` } },

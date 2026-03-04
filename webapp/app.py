@@ -392,6 +392,7 @@ def upload():
     return render_template('upload.html',
         preview=None,
         upload_history=_get_upload_history(),
+        today=date.today().isoformat(),
     )
 
 
