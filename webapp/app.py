@@ -213,7 +213,7 @@ def dashboard():
                     'new_amount': new_amt,
                     'diff': new_amt - old_amt,
                 })
-        comp_rows.sort(key=lambda x: abs(x['diff']), reverse=True)
+        comp_rows.sort(key=lambda x: (-sum(abs(r['diff']) for r in comp_rows if r['name'] == x['name']), x['name'], x['media']))
 
     return render_template('dashboard.html',
         dates=dates,
@@ -572,7 +572,7 @@ def admin():
                     'new_amount': new_amt,
                     'diff': new_amt - old_amt,
                 })
-        comp_rows.sort(key=lambda x: abs(x['diff']), reverse=True)
+        comp_rows.sort(key=lambda x: (-sum(abs(r['diff']) for r in comp_rows if r['name'] == x['name']), x['name'], x['media']))
 
     return render_template('admin.html',
         staff=staff,

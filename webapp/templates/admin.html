@@ -137,9 +137,13 @@
         </tr>
       </thead>
       <tbody>
+        {% set prev_name = namespace(val='') %}
         {% for row in comp_rows %}
-        <tr>
-          <td class="sticky-col fw-semibold">{{ row.name }}</td>
+        <tr{% if prev_name.val != row.name and not loop.first %} class="border-top border-2"{% endif %}>
+          <td class="sticky-col fw-semibold">
+            {% if prev_name.val != row.name %}{{ row.name }}{% endif %}
+            {% set prev_name.val = row.name %}
+          </td>
           <td>
             {% if row.media == '네이버' %}<span class="badge bg-success badge-media">네이버</span>
             {% elif row.media == 'GFA' %}<span class="badge bg-info text-dark badge-media">GFA</span>
@@ -152,8 +156,10 @@
           <td class="amount-cell {% if row.new_amount == 0 %}text-muted{% endif %}">
             {{ row.new_amount|comma if row.new_amount else '—' }}
           </td>
-          <td class="amount-cell fw-semibold {% if row.diff > 0 %}text-primary{% elif row.diff < 0 %}text-danger{% else %}text-muted{% endif %}">
-            {% if row.diff > 0 %}+{% endif %}{{ row.diff|comma }}
+          <td class="amount-cell fw-bold {% if row.diff > 0 %}text-danger{% elif row.diff < 0 %}text-primary{% else %}text-muted{% endif %}">
+            {% if row.diff > 0 %}+{{ row.diff|comma }}
+            {% elif row.diff < 0 %}{{ row.diff|comma }}
+            {% else %}0{% endif %}
           </td>
         </tr>
         {% endfor %}
