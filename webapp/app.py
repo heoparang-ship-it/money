@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 
@@ -245,6 +246,35 @@ def upload():
                     preview = preview_parse(tmp_path)
                     file_type = 'excel'
 
+                # 기존 데이터와 비교
+                comparison = []
+                existing_total = 0
+                new_total = 0
+                for r in preview['records']:
+                    existing = DailySpend.query.filter_by(
+                        user_id=current_user.id,
+                        advertiser_id=r['advertiser_id'],
+                        date=r['date'],
+                        media=r['media'],
+                    ).first()
+                    old_amt = existing.amount if existing else 0
+                    new_amt = r['amount']
+                    comparison.append({
+                        'advertiser_name': r['advertiser_name'],
+                        'date': r['date'],
+                        'media': r['media'],
+                        'old_amount': old_amt,
+                        'new_amount': new_amt,
+                        'diff': old_amt - new_amt,
+                    })
+                    existing_total += old_amt
+                    new_total += new_amt
+
+                preview['comparison'] = comparison
+                preview['existing_total'] = existing_total
+                preview['new_total'] = new_total
+                preview['diff_total'] = existing_total - new_total
+
                 session['pending_upload'] = {
                     'tmp_path': tmp_path,
                     'filename': filename,
@@ -279,6 +309,9 @@ def upload():
                 return redirect(url_for('upload'))
 
             try:
+                # DB 자동 백업
+                _backup_db()
+
                 file_type = pending.get('file_type', 'excel')
                 if file_type == 'csv':
                     target_date = date.fromisoformat(pending['target_date'])
@@ -368,6 +401,24 @@ def _get_upload_history():
             .order_by(Upload.uploaded_at.desc())
             .limit(10)
             .all())
+
+
+def _backup_db():
+    """저장 전 DB를 자동 백업 (최근 30개 유지)"""
+    db_path = os.path.join(BASE_DIR, 'instance', 'db.sqlite')
+    if not os.path.exists(db_path):
+        return
+    backup_dir = os.path.join(BASE_DIR, 'backup')
+    os.makedirs(backup_dir, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    shutil.copy2(db_path, os.path.join(backup_dir, f'db_backup_{timestamp}.sqlite'))
+    # 오래된 백업 정리 (최근 30개만 유지)
+    backups = sorted(
+        [f for f in os.listdir(backup_dir) if f.startswith('db_backup_')],
+        reverse=True,
+    )
+    for old in backups[30:]:
+        os.remove(os.path.join(backup_dir, old))
 
 
 # ── 관리자 뷰 ─────────────────────────────────────────────────────

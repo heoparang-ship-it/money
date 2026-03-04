@@ -4,12 +4,12 @@
 {% block content %}
 <div class="page-header">
   <h5 class="mb-0 fw-bold"><i class="bi bi-upload me-2 text-success"></i>소진액 파일 업로드</h5>
-  <small class="text-muted">엑셀(.xlsx) 또는 CSV 파일을 업로드하면 날짜별로 자동 누적됩니다.</small>
+  <small class="text-muted">엑셀(.xlsx) 또는 CSV 파일을 업로드하면 날짜별로 자동 누적됩니다. 파일은 저장되지 않으며 데이터만 추출됩니다.</small>
 </div>
 
 <div class="row g-4">
   <!-- 업로드 폼 -->
-  <div class="col-lg-7">
+  <div class="{% if preview and preview.comparison %}col-12{% else %}col-lg-7{% endif %}">
     <div class="card">
       <div class="card-header bg-white">
         <i class="bi bi-file-earmark-arrow-up me-1 text-success"></i>파일 선택
@@ -51,6 +51,8 @@
           <i class="bi bi-check-circle me-1"></i>
           파일 파싱 완료! 아래 내용을 확인 후 저장하세요.
         </div>
+
+        <!-- 요약 -->
         <table class="table table-sm table-bordered mb-3">
           <tr><th style="width:120px">발견된 날짜</th>
               <td>{% for d in preview.dates %}
@@ -58,8 +60,6 @@
               {% endfor %}</td>
           </tr>
           <tr><th>레코드 수</th><td><strong>{{ preview.record_count }}</strong>개</td></tr>
-          <tr><th>총 소진액</th><td><strong class="text-primary">{{ preview.total_amount|comma }}</strong>원</td></tr>
-          <tr><th>광고주 수</th><td>{{ preview.advertisers|length }}개</td></tr>
           {% if preview.medias is defined and preview.medias %}
           <tr><th>매체 분류</th>
               <td>{% for m in preview.medias %}
@@ -70,7 +70,77 @@
               {% endfor %}</td>
           </tr>
           {% endif %}
+          <tr><th>기존 합계</th><td><strong>{{ preview.existing_total|comma }}</strong>원</td></tr>
+          <tr><th>신규 합계</th><td><strong class="text-primary">{{ preview.new_total|comma }}</strong>원</td></tr>
+          <tr><th>차액 (기존-신규)</th>
+              <td>
+                <strong class="{% if preview.diff_total > 0 %}text-danger{% elif preview.diff_total < 0 %}text-primary{% else %}text-muted{% endif %}">
+                  {{ preview.diff_total|comma }}원
+                </strong>
+                {% if preview.diff_total > 0 %}
+                  <small class="text-danger">(기존이 {{ preview.diff_total|comma }}원 더 큼)</small>
+                {% elif preview.diff_total < 0 %}
+                  <small class="text-primary">(신규가 {{ (preview.diff_total * -1)|comma }}원 더 큼)</small>
+                {% else %}
+                  <small class="text-muted">(변경 없음)</small>
+                {% endif %}
+              </td>
+          </tr>
         </table>
+
+        <!-- 비교 테이블 -->
+        {% if preview.comparison %}
+        <details class="mb-3" open>
+          <summary class="fw-semibold small"><i class="bi bi-arrow-left-right me-1"></i>기존 vs 신규 상세 비교</summary>
+          <div class="table-responsive mt-2" style="max-height:400px; overflow-y:auto;">
+            <table class="table table-sm table-bordered table-hover mb-0 align-middle">
+              <thead class="table-light" style="position:sticky; top:0; z-index:1;">
+                <tr>
+                  <th>광고주명</th>
+                  <th>날짜</th>
+                  <th>매체</th>
+                  <th class="amount-cell">기존 금액</th>
+                  <th class="amount-cell">신규 금액</th>
+                  <th class="amount-cell">차액</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in preview.comparison %}
+                <tr class="{% if c.diff == 0 and c.old_amount > 0 %}table-light{% endif %}">
+                  <td class="fw-semibold">{{ c.advertiser_name }}</td>
+                  <td>{{ c.date.month }}/{{ c.date.day }}</td>
+                  <td>
+                    {% if c.media == '네이버' %}<span class="badge bg-success badge-media">네이버</span>
+                    {% elif c.media == 'GFA' %}<span class="badge bg-info text-dark badge-media">GFA</span>
+                    {% elif c.media == 'AD' %}<span class="badge bg-warning text-dark badge-media">AD</span>
+                    {% else %}<span class="badge bg-secondary badge-media">{{ c.media }}</span>{% endif %}
+                  </td>
+                  <td class="amount-cell {% if c.old_amount == 0 %}text-muted{% endif %}">
+                    {{ c.old_amount|comma if c.old_amount else '—' }}
+                  </td>
+                  <td class="amount-cell fw-semibold text-primary">{{ c.new_amount|comma }}</td>
+                  <td class="amount-cell fw-semibold {% if c.diff > 0 %}text-danger{% elif c.diff < 0 %}text-primary{% else %}text-muted{% endif %}">
+                    {% if c.diff > 0 %}+{{ c.diff|comma }}
+                    {% elif c.diff < 0 %}{{ c.diff|comma }}
+                    {% else %}0{% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+                <tr class="table-dark">
+                  <td colspan="3" class="fw-bold">합계</td>
+                  <td class="amount-cell fw-bold">{{ preview.existing_total|comma }}</td>
+                  <td class="amount-cell fw-bold text-primary">{{ preview.new_total|comma }}</td>
+                  <td class="amount-cell fw-bold {% if preview.diff_total > 0 %}text-danger{% elif preview.diff_total < 0 %}text-info{% endif %}">
+                    {% if preview.diff_total > 0 %}+{{ preview.diff_total|comma }}
+                    {% elif preview.diff_total < 0 %}{{ preview.diff_total|comma }}
+                    {% else %}0{% endif %}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        {% endif %}
 
         <details class="mb-3">
           <summary class="text-muted small cursor-pointer">광고주 목록 보기</summary>
@@ -100,6 +170,7 @@
     </div>
 
     <!-- 형식 안내 -->
+    {% if not preview %}
     <div class="card mt-3">
       <div class="card-header bg-white">
         <i class="bi bi-info-circle me-1 text-info"></i>파일 형식 안내
@@ -122,12 +193,15 @@
           <li>매체 자동 분류: 네이버(검색) / GFA(성과형DA) / AD(ADVoost)</li>
           <li>CSV에는 날짜가 없으므로 <strong>날짜를 직접 선택</strong>해야 합니다</li>
           <li>같은 날짜/광고주/매체 데이터는 덮어씌워집니다 (upsert)</li>
+          <li><strong>파일은 저장되지 않으며</strong> 데이터만 추출 후 삭제됩니다</li>
         </ul>
       </div>
     </div>
+    {% endif %}
   </div>
 
-  <!-- 업로드 이력 -->
+  <!-- 업로드 이력 (미리보기 아닐때만) -->
+  {% if not preview %}
   <div class="col-lg-5">
     <div class="card">
       <div class="card-header bg-white">
@@ -164,6 +238,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 </div>
 {% endblock %}
 
