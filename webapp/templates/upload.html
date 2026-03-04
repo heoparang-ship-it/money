@@ -76,15 +76,15 @@
           {% endif %}
           <tr><th>기존 합계</th><td><strong>{{ preview.existing_total|comma }}</strong>원</td></tr>
           <tr><th>신규 합계</th><td><strong class="text-primary">{{ preview.new_total|comma }}</strong>원</td></tr>
-          <tr><th>차액 (기존-신규)</th>
+          <tr><th>차액 (신규-기존)</th>
               <td>
-                <strong class="{% if preview.diff_total > 0 %}text-danger{% elif preview.diff_total < 0 %}text-primary{% else %}text-muted{% endif %}">
-                  {{ preview.diff_total|comma }}원
+                <strong class="{% if preview.diff_total > 0 %}text-primary{% elif preview.diff_total < 0 %}text-danger{% else %}text-muted{% endif %}">
+                  {% if preview.diff_total > 0 %}+{% endif %}{{ preview.diff_total|comma }}원
                 </strong>
                 {% if preview.diff_total > 0 %}
-                  <small class="text-danger">(기존이 {{ preview.diff_total|comma }}원 더 큼)</small>
+                  <small class="text-primary">(신규가 {{ preview.diff_total|comma }}원 더 큼)</small>
                 {% elif preview.diff_total < 0 %}
-                  <small class="text-primary">(신규가 {{ (preview.diff_total * -1)|comma }}원 더 큼)</small>
+                  <small class="text-danger">(기존이 {{ (preview.diff_total * -1)|comma }}원 더 큼)</small>
                 {% else %}
                   <small class="text-muted">(변경 없음)</small>
                 {% endif %}
@@ -225,7 +225,15 @@
                 {% endif %}
                 {{ u.filename }}
               </span>
-              <span class="badge bg-secondary">{{ u.records_count }}건</span>
+              <div class="d-flex align-items-center gap-1">
+                <span class="badge bg-secondary">{{ u.records_count }}건</span>
+                <form method="POST" action="{{ url_for('delete_upload', upload_id=u.id) }}"
+                      onsubmit="return confirm('정말 삭제하시겠습니까?\n{{ u.filename }} ({{ u.records_count }}건)');">
+                  <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" title="삭제">
+                    <i class="bi bi-trash3" style="font-size:0.75rem;"></i>
+                  </button>
+                </form>
+              </div>
             </div>
             <small class="text-muted">
               {{ u.uploaded_at.strftime('%Y.%m.%d %H:%M') }}
@@ -285,6 +293,16 @@ fileInput?.addEventListener('change', function() {
   if (isCSV) {
     csvDateGroup.classList.remove('d-none');
     targetDate.required = true;
+
+    // 파일명에서 날짜 자동 추출 (예: 35806_실적상세_2026-03-03_2026-03-03)
+    const dateMatch = file.name.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (dateMatch) {
+      targetDate.value = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+      fileInfo.innerHTML = fileIcon.outerHTML + ' ' + file.name +
+        ' (' + (file.size / 1024).toFixed(1) + ' KB)' +
+        ' <span class="badge bg-primary ms-1">날짜 자동 감지: ' +
+        dateMatch[1] + '-' + dateMatch[2] + '-' + dateMatch[3] + '</span>';
+    }
   } else {
     csvDateGroup.classList.add('d-none');
     targetDate.required = false;

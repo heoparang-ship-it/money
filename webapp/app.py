@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import shutil
 from datetime import date, datetime, timedelta
@@ -210,7 +211,7 @@ def dashboard():
                     'media': media,
                     'old_amount': old_amt,
                     'new_amount': new_amt,
-                    'diff': old_amt - new_amt,
+                    'diff': new_amt - old_amt,
                 })
         comp_rows.sort(key=lambda x: abs(x['diff']), reverse=True)
 
@@ -257,8 +258,13 @@ def upload():
 
             try:
                 if ext == 'csv':
-                    # CSV: 날짜 입력 필수
+                    # CSV: 날짜 — 폼에서 입력 or 파일명에서 자동 추출
                     date_str = request.form.get('target_date', '').strip()
+                    if not date_str:
+                        # 파일명에서 날짜 추출 시도 (예: 35806_실적상세_2026-03-03_2026-03-03)
+                        date_match = re.search(r'(\d{4})-(\d{2})-(\d{2})', f.filename or '')
+                        if date_match:
+                            date_str = f'{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}'
                     if not date_str:
                         os.remove(tmp_path)
                         flash('CSV 파일은 날짜를 선택해야 합니다.', 'danger')
@@ -289,7 +295,7 @@ def upload():
                         'media': r['media'],
                         'old_amount': old_amt,
                         'new_amount': new_amt,
-                        'diff': old_amt - new_amt,
+                        'diff': new_amt - old_amt,
                     })
                     existing_total += old_amt
                     new_total += new_amt
@@ -297,7 +303,7 @@ def upload():
                 preview['comparison'] = comparison
                 preview['existing_total'] = existing_total
                 preview['new_total'] = new_total
-                preview['diff_total'] = existing_total - new_total
+                preview['diff_total'] = new_total - existing_total
 
                 session['pending_upload'] = {
                     'tmp_path': tmp_path,
@@ -426,6 +432,26 @@ def _get_upload_history():
             .order_by(Upload.uploaded_at.desc())
             .limit(10)
             .all())
+
+
+@app.route('/upload/delete/<int:upload_id>', methods=['POST'])
+@login_required
+def delete_upload(upload_id):
+    """업로드 및 연결된 소진액 데이터를 삭제한다."""
+    upload_obj = Upload.query.filter_by(id=upload_id, user_id=current_user.id).first()
+    if not upload_obj:
+        flash('삭제할 업로드를 찾을 수 없습니다.', 'warning')
+        return redirect(url_for('upload'))
+
+    _backup_db()
+
+    # 연결된 DailySpend 레코드 삭제
+    deleted_count = DailySpend.query.filter_by(upload_id=upload_id).delete()
+    db.session.delete(upload_obj)
+    db.session.commit()
+
+    flash(f'"{upload_obj.filename}" 삭제 완료 ({deleted_count}건 데이터 제거)', 'success')
+    return redirect(url_for('upload'))
 
 
 def _backup_db():
