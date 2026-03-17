@@ -665,6 +665,8 @@ def admin_accounts():
             user_id = request.form.get('user_id', type=int)
             user = db.session.get(User, user_id)
             if user and user.id != current_user.id:
+                DailySpend.query.filter_by(user_id=user.id).delete()
+                Upload.query.filter_by(user_id=user.id).delete()
                 db.session.delete(user)
                 db.session.commit()
                 flash(f'{user.display_name} 계정이 삭제되었습니다.', 'success')
