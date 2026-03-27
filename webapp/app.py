@@ -14,7 +14,7 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import func
 
 from models import db, User, Advertiser, Upload, DailySpend
-from excel_parser import preview_parse, preview_parse_csv
+from excel_parser import preview_parse, preview_parse_csv, parse_excel, parse_csv, _make_preview
 
 # ── 앱 초기화 ──────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,7 +29,7 @@ if _db_url.startswith('postgres://'):
 app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024  # 64MB (멀티 파일 업로드)
 
 db.init_app(app)
 
@@ -258,39 +258,63 @@ def upload():
         action = request.form.get('action')
 
         if action == 'preview':
-            # 파일 파싱 미리보기
-            if 'file' not in request.files:
+            # 멀티 파일 파싱 미리보기
+            files = request.files.getlist('files')
+            if not files or not files[0].filename:
                 flash('파일을 선택해주세요.', 'danger')
                 return redirect(request.url)
-            f = request.files['file']
-            if not f.filename or not allowed_file(f.filename):
-                flash('xlsx, xls 또는 csv 파일만 업로드 가능합니다.', 'danger')
-                return redirect(request.url)
 
-            filename = secure_filename(f.filename)
-            ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-            tmp_path = os.path.join(app.config['UPLOAD_FOLDER'], f'tmp_{current_user.id}_{filename}')
-            f.save(tmp_path)
+            all_records = []
+            tmp_paths = []
+            file_infos = []  # [{filename, file_type, target_date}, ...]
+            fallback_date_str = request.form.get('target_date', '').strip()
 
             try:
-                if ext == 'csv':
-                    # CSV: 날짜 — 폼에서 입력 or 파일명에서 자동 추출
-                    date_str = request.form.get('target_date', '').strip()
-                    if not date_str:
-                        # 파일명에서 날짜 추출 시도 (예: 35806_실적상세_2026-03-03_2026-03-03)
+                for f in files:
+                    if not f.filename or not allowed_file(f.filename):
+                        continue
+
+                    filename = secure_filename(f.filename)
+                    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+                    tmp_path = os.path.join(app.config['UPLOAD_FOLDER'],
+                                            f'tmp_{current_user.id}_{filename}')
+                    f.save(tmp_path)
+                    tmp_paths.append(tmp_path)
+
+                    if ext == 'csv':
+                        # CSV: 파일명에서 날짜 추출 → 실패 시 폼 날짜 사용
+                        date_str = ''
                         date_match = re.search(r'(\d{4})-(\d{2})-(\d{2})', f.filename or '')
                         if date_match:
                             date_str = f'{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}'
-                    if not date_str:
-                        os.remove(tmp_path)
-                        flash('CSV 파일은 날짜를 선택해야 합니다.', 'danger')
-                        return redirect(request.url)
-                    target_date = date.fromisoformat(date_str)
-                    preview = preview_parse_csv(tmp_path, target_date)
-                    file_type = 'csv'
-                else:
-                    preview = preview_parse(tmp_path)
-                    file_type = 'excel'
+                        if not date_str:
+                            date_str = fallback_date_str
+                        if not date_str:
+                            # 임시 파일 정리
+                            for p in tmp_paths:
+                                if os.path.exists(p):
+                                    os.remove(p)
+                            flash(f'CSV 파일 "{f.filename}"의 날짜를 확인할 수 없습니다. 날짜를 선택해주세요.', 'danger')
+                            return redirect(request.url)
+
+                        target_date = date.fromisoformat(date_str)
+                        parsed = preview_parse_csv(tmp_path, target_date)
+                        file_infos.append({'filename': filename, 'file_type': 'csv', 'target_date': date_str})
+                    else:
+                        parsed = preview_parse(tmp_path)
+                        file_infos.append({'filename': filename, 'file_type': 'excel', 'target_date': None})
+
+                    all_records.extend(parsed['records'])
+
+                if not all_records:
+                    for p in tmp_paths:
+                        if os.path.exists(p):
+                            os.remove(p)
+                    flash('파싱된 데이터가 없습니다. 파일 형식을 확인해주세요.', 'danger')
+                    return redirect(request.url)
+
+                # 통합 미리보기 생성
+                preview = _make_preview(all_records)
 
                 # 기존 데이터와 비교
                 comparison = []
@@ -322,10 +346,8 @@ def upload():
                 preview['diff_total'] = new_total - existing_total
 
                 session['pending_upload'] = {
-                    'tmp_path': tmp_path,
-                    'filename': filename,
-                    'file_type': file_type,
-                    'target_date': date_str if ext == 'csv' else None,
+                    'tmp_paths': tmp_paths,
+                    'file_infos': file_infos,
                     'dates': [str(d) for d in preview['dates']],
                     'advertisers': preview['advertisers'],
                     'total_amount': preview['total_amount'],
@@ -336,91 +358,109 @@ def upload():
                     upload_history=_get_upload_history(),
                 )
             except Exception as e:
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
+                for p in tmp_paths:
+                    if os.path.exists(p):
+                        os.remove(p)
                 flash(f'파일 파싱 오류: {str(e)}', 'danger')
                 return redirect(request.url)
 
         elif action == 'save':
-            # DB에 저장
+            # DB에 저장 (멀티 파일)
             pending = session.get('pending_upload')
             if not pending:
                 flash('먼저 파일을 미리보기 하세요.', 'warning')
                 return redirect(url_for('upload'))
 
-            tmp_path = pending['tmp_path']
-            if not os.path.exists(tmp_path):
+            tmp_paths = pending.get('tmp_paths', [])
+            file_infos = pending.get('file_infos', [])
+
+            # 하위 호환: 기존 단일 파일 세션
+            if not tmp_paths and pending.get('tmp_path'):
+                tmp_paths = [pending['tmp_path']]
+                file_infos = [{'filename': pending['filename'],
+                               'file_type': pending.get('file_type', 'excel'),
+                               'target_date': pending.get('target_date')}]
+
+            if not any(os.path.exists(p) for p in tmp_paths):
                 flash('임시 파일이 만료되었습니다. 다시 업로드해주세요.', 'warning')
                 session.pop('pending_upload', None)
                 return redirect(url_for('upload'))
 
             try:
-                # DB 자동 백업
                 _backup_db()
 
-                file_type = pending.get('file_type', 'excel')
-                if file_type == 'csv':
-                    target_date = date.fromisoformat(pending['target_date'])
-                    preview = preview_parse_csv(tmp_path, target_date)
-                else:
-                    preview = preview_parse(tmp_path)
-                records = preview['records']
+                total_count = 0
+                filenames = []
 
-                upload_obj = Upload(
-                    user_id=current_user.id,
-                    filename=pending['filename'],
-                    records_count=len(records),
-                )
-                db.session.add(upload_obj)
-                db.session.flush()  # upload_obj.id 확보
+                for tmp_path, info in zip(tmp_paths, file_infos):
+                    if not os.path.exists(tmp_path):
+                        continue
 
-                count = 0
-                for r in records:
-                    # 광고주 upsert (신규 생성 또는 이름/계정 업데이트)
-                    adv = Advertiser.query.filter_by(advertiser_id=r['advertiser_id']).first()
-                    if not adv:
-                        adv = Advertiser(
-                            advertiser_id=r['advertiser_id'],
-                            account_id=r['account_id'],
-                            name=r['advertiser_name'],
-                        )
-                        db.session.add(adv)
-                        db.session.flush()
+                    if info['file_type'] == 'csv':
+                        target_dt = date.fromisoformat(info['target_date'])
+                        records = parse_csv(tmp_path, target_dt)
                     else:
-                        if adv.name != r['advertiser_name']:
-                            adv.name = r['advertiser_name']
-                        if r['account_id'] and adv.account_id != r['account_id']:
-                            adv.account_id = r['account_id']
+                        records = parse_excel(tmp_path)
 
-                    # 소진액 upsert
-                    existing = DailySpend.query.filter_by(
+                    upload_obj = Upload(
                         user_id=current_user.id,
-                        advertiser_id=r['advertiser_id'],
-                        date=r['date'],
-                        media=r['media'],
-                    ).first()
-                    if existing:
-                        existing.amount = r['amount']
-                        existing.upload_id = upload_obj.id
-                    else:
-                        spend = DailySpend(
+                        filename=info['filename'],
+                        records_count=len(records),
+                    )
+                    db.session.add(upload_obj)
+                    db.session.flush()
+
+                    count = 0
+                    for r in records:
+                        adv = Advertiser.query.filter_by(advertiser_id=r['advertiser_id']).first()
+                        if not adv:
+                            adv = Advertiser(
+                                advertiser_id=r['advertiser_id'],
+                                account_id=r['account_id'],
+                                name=r['advertiser_name'],
+                            )
+                            db.session.add(adv)
+                            db.session.flush()
+                        else:
+                            if adv.name != r['advertiser_name']:
+                                adv.name = r['advertiser_name']
+                            if r['account_id'] and adv.account_id != r['account_id']:
+                                adv.account_id = r['account_id']
+
+                        existing = DailySpend.query.filter_by(
                             user_id=current_user.id,
                             advertiser_id=r['advertiser_id'],
                             date=r['date'],
                             media=r['media'],
-                            amount=r['amount'],
-                            upload_id=upload_obj.id,
-                        )
-                        db.session.add(spend)
-                    count += 1
+                        ).first()
+                        if existing:
+                            existing.amount = r['amount']
+                            existing.upload_id = upload_obj.id
+                        else:
+                            spend = DailySpend(
+                                user_id=current_user.id,
+                                advertiser_id=r['advertiser_id'],
+                                date=r['date'],
+                                media=r['media'],
+                                amount=r['amount'],
+                                upload_id=upload_obj.id,
+                            )
+                            db.session.add(spend)
+                        count += 1
 
-                upload_obj.records_count = count
+                    upload_obj.records_count = count
+                    total_count += count
+                    filenames.append(info['filename'])
+
                 db.session.commit()
 
                 # 임시 파일 삭제
-                os.remove(tmp_path)
+                for p in tmp_paths:
+                    if os.path.exists(p):
+                        os.remove(p)
                 session.pop('pending_upload', None)
-                flash(f'저장 완료! {count}개 레코드가 반영되었습니다.', 'success')
+
+                flash(f'저장 완료! {len(filenames)}개 파일, {total_count}개 레코드가 반영되었습니다.', 'success')
                 return redirect(url_for('dashboard'))
 
             except Exception as e:
@@ -430,8 +470,13 @@ def upload():
 
         elif action == 'cancel':
             pending = session.pop('pending_upload', None)
-            if pending and os.path.exists(pending.get('tmp_path', '')):
-                os.remove(pending['tmp_path'])
+            if pending:
+                for p in pending.get('tmp_paths', []):
+                    if os.path.exists(p):
+                        os.remove(p)
+                # 하위 호환
+                if pending.get('tmp_path') and os.path.exists(pending['tmp_path']):
+                    os.remove(pending['tmp_path'])
             flash('업로드가 취소되었습니다.', 'info')
             return redirect(url_for('upload'))
 

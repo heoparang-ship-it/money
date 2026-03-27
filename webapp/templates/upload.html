@@ -20,27 +20,24 @@
         <form method="POST" enctype="multipart/form-data" id="previewForm">
           <input type="hidden" name="action" value="preview">
           <div class="mb-3">
-            <label class="form-label fw-semibold">파일 선택 (.xlsx / .csv)</label>
-            <input type="file" class="form-control" name="file" accept=".xlsx,.xls,.csv"
-                   required id="fileInput">
+            <label class="form-label fw-semibold">파일 선택 (.xlsx / .csv) — 여러 파일 동시 선택 가능</label>
+            <input type="file" class="form-control" name="files" accept=".xlsx,.xls,.csv"
+                   required id="fileInput" multiple>
           </div>
-          <div id="fileInfo" class="alert alert-info d-none">
-            <i class="bi bi-file-earmark me-1" id="fileIcon"></i>
-            <span id="fileName"></span>
-          </div>
+          <div id="fileList" class="d-none mb-3"></div>
 
-          <!-- CSV 날짜 선택 (JS로 토글) -->
+          <!-- CSV 날짜 선택 (파일명에서 자동 추출 안될 때만 표시) -->
           <div id="csvDateGroup" class="mb-3 d-none">
             <label class="form-label fw-semibold">
-              <i class="bi bi-calendar3 me-1 text-primary"></i>소진일 날짜 선택
+              <i class="bi bi-calendar3 me-1 text-primary"></i>CSV 기본 소진일 날짜
               <span class="text-danger">*</span>
             </label>
             <input type="date" class="form-control border-primary" name="target_date" id="targetDate"
                    value="{{ today if today else '' }}" style="font-size:1.1rem; font-weight:600;">
             <div class="alert alert-warning mt-2 mb-0 py-2 small">
               <i class="bi bi-exclamation-triangle me-1"></i>
-              <strong>반드시 해당 소진일 날짜를 정확히 선택해주세요!</strong>
-              CSV 파일에는 날짜 정보가 없으므로 여기서 선택한 날짜로 저장됩니다.
+              <strong>파일명에서 날짜를 추출할 수 없는 CSV에 적용됩니다.</strong>
+              엑셀 파일은 파일 내 날짜를 자동 인식합니다.
             </div>
           </div>
 
@@ -53,7 +50,11 @@
         <!-- Step 2: 미리보기 확인 -->
         <div class="alert alert-success">
           <i class="bi bi-check-circle me-1"></i>
-          파일 파싱 완료! 아래 내용을 확인 후 저장하세요.
+          {% if session.get('pending_upload', {}).get('file_infos', [])|length > 1 %}
+            <strong>{{ session['pending_upload']['file_infos']|length }}개 파일</strong> 파싱 완료! 아래 통합 결과를 확인 후 저장하세요.
+          {% else %}
+            파일 파싱 완료! 아래 내용을 확인 후 저장하세요.
+          {% endif %}
         </div>
 
         <!-- 요약 -->
@@ -258,9 +259,7 @@
 <script>
 const fileInput = document.getElementById('fileInput');
 const csvDateGroup = document.getElementById('csvDateGroup');
-const fileInfo = document.getElementById('fileInfo');
-const fileName = document.getElementById('fileName');
-const fileIcon = document.getElementById('fileIcon');
+const fileList = document.getElementById('fileList');
 const targetDate = document.getElementById('targetDate');
 
 // 오늘 날짜 기본값
@@ -273,36 +272,47 @@ if (targetDate && !targetDate.value) {
 }
 
 fileInput?.addEventListener('change', function() {
-  if (!this.files[0]) return;
+  if (!this.files.length) return;
 
-  const file = this.files[0];
-  const ext = file.name.split('.').pop().toLowerCase();
-  const isCSV = ext === 'csv';
+  // 기존 목록 초기화
+  fileList.textContent = '';
+  let hasCSVWithoutDate = false;
 
-  // 파일 정보 표시
-  fileName.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
-  fileIcon.className = isCSV
-    ? 'bi bi-filetype-csv text-info me-1'
-    : 'bi bi-file-earmark-excel text-success me-1';
-  fileInfo.className = isCSV
-    ? 'alert alert-info'
-    : 'alert alert-success';
-  fileInfo.classList.remove('d-none');
+  for (const file of this.files) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const isCSV = ext === 'csv';
 
-  // CSV면 날짜 선택 표시
-  if (isCSV) {
+    const item = document.createElement('div');
+    item.className = isCSV ? 'alert alert-info py-2 mb-1' : 'alert alert-success py-2 mb-1';
+
+    const icon = document.createElement('i');
+    icon.className = isCSV ? 'bi bi-filetype-csv text-info me-1' : 'bi bi-file-earmark-excel text-success me-1';
+    item.appendChild(icon);
+
+    const text = document.createTextNode(file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB) ');
+    item.appendChild(text);
+
+    if (isCSV) {
+      const dateMatch = file.name.match(/(\d{4})-(\d{2})-(\d{2})/);
+      if (dateMatch) {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-primary ms-1';
+        badge.textContent = '날짜 자동 감지: ' + dateMatch[1] + '-' + dateMatch[2] + '-' + dateMatch[3];
+        item.appendChild(badge);
+        if (!targetDate.value) targetDate.value = dateMatch[1] + '-' + dateMatch[2] + '-' + dateMatch[3];
+      } else {
+        hasCSVWithoutDate = true;
+      }
+    }
+
+    fileList.appendChild(item);
+  }
+
+  fileList.classList.remove('d-none');
+
+  if (hasCSVWithoutDate) {
     csvDateGroup.classList.remove('d-none');
     targetDate.required = true;
-
-    // 파일명에서 날짜 자동 추출 (예: 35806_실적상세_2026-03-03_2026-03-03)
-    const dateMatch = file.name.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (dateMatch) {
-      targetDate.value = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
-      fileInfo.innerHTML = fileIcon.outerHTML + ' ' + file.name +
-        ' (' + (file.size / 1024).toFixed(1) + ' KB)' +
-        ' <span class="badge bg-primary ms-1">날짜 자동 감지: ' +
-        dateMatch[1] + '-' + dateMatch[2] + '-' + dateMatch[3] + '</span>';
-    }
   } else {
     csvDateGroup.classList.add('d-none');
     targetDate.required = false;
