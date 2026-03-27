@@ -682,17 +682,96 @@ def admin_accounts():
 # ── 앱 실행 ───────────────────────────────────────────────────────
 
 def init_db():
-    """DB 초기화 및 관리자 계정 seed"""
+    """DB 초기화 및 관리자 계정 seed + 데이터 복구"""
     os.makedirs(os.path.join(BASE_DIR, 'instance'), exist_ok=True)
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     db.create_all()
 
+    # ── 관리자 계정 seed ──
     if not User.query.filter_by(username='admin').first():
         admin = User(username='admin', display_name='관리자', is_admin=True)
         admin.set_password('admin1234')
         db.session.add(admin)
         db.session.commit()
         print('관리자 계정 생성: admin / admin1234')
+
+    # ── 담당자 계정 seed ──
+    if not User.query.filter_by(username='staff1').first():
+        staff = User(username='staff1', display_name='김담당', is_admin=False)
+        staff.set_password('staff1')
+        db.session.add(staff)
+        db.session.commit()
+        print('담당자 계정 생성: staff1 / staff1')
+
+    # ── 광고주 데이터 seed ──
+    if Advertiser.query.count() == 0:
+        seed_advertisers = [
+            ('mianso:naver', '717609', '명도'),
+            ('mkrmm:naver', '1265157', '주식회사 미래에스엠'),
+            ('ttuck98:naver', '1414695', '한세솔루션즈(주)'),
+            ('haeng_un7:naver', '1486549', '풍일산업'),
+            ('cuscom0001:naver', '1637866', '커스컴'),
+            ('iwbtbst:naver', '2156783', '민수마트'),
+            ('dhsys22:naver', '2389848', '(주)대한시스템'),
+            ('seowk85:naver', '2807950', '골든네온'),
+            ('ashiaato77:naver', '2868711', '수목품'),
+            ('choice7114:naver', '2872546', '폴마더스'),
+            ('hhn1109:naver', '3097453', '씨앗주머니'),
+            ('eun-hyang2020:naver', '3172074', '더 이에이치'),
+            ('odleeodlee10:naver', '3299770', '수지본 동태탕 알탕'),
+            ('nature25:naver', '3514890', '라즈컴퍼니'),
+            ('clipid13:naver', '4236387', '비닐상회'),
+        ]
+        for adv_id, acc_id, name in seed_advertisers:
+            db.session.add(Advertiser(advertiser_id=adv_id, account_id=acc_id, name=name))
+        db.session.commit()
+        print(f'광고주 {len(seed_advertisers)}개 복구 완료')
+
+    # ── 소진액 데이터 seed ──
+    if DailySpend.query.count() == 0:
+        staff = User.query.filter_by(username='staff1').first()
+        if staff:
+            seed_spends = [
+                ('mianso:naver', '2026-03-01', '네이버', 6660),
+                ('mianso:naver', '2026-03-02', '네이버', 8720),
+                ('mkrmm:naver', '2026-03-01', '네이버', 19290),
+                ('mkrmm:naver', '2026-03-02', '네이버', 18430),
+                ('ttuck98:naver', '2026-03-01', '네이버', 17310),
+                ('ttuck98:naver', '2026-03-02', '네이버', 11500),
+                ('cuscom0001:naver', '2026-03-01', '네이버', 3960),
+                ('cuscom0001:naver', '2026-03-02', '네이버', 9850),
+                ('iwbtbst:naver', '2026-03-01', '네이버', 11130),
+                ('iwbtbst:naver', '2026-03-02', '네이버', 12470),
+                ('dhsys22:naver', '2026-03-01', '네이버', 107070),
+                ('dhsys22:naver', '2026-03-02', '네이버', 104560),
+                ('seowk85:naver', '2026-03-01', '네이버', 4490),
+                ('seowk85:naver', '2026-03-02', '네이버', 4130),
+                ('ashiaato77:naver', '2026-03-01', '네이버', 18260),
+                ('ashiaato77:naver', '2026-03-02', '네이버', 11550),
+                ('choice7114:naver', '2026-03-01', '네이버', 18027),
+                ('choice7114:naver', '2026-03-02', '네이버', 18063),
+                ('hhn1109:naver', '2026-03-01', '네이버', 2190),
+                ('hhn1109:naver', '2026-03-02', '네이버', 5160),
+                ('nature25:naver', '2026-03-01', '네이버', 40340),
+                ('nature25:naver', '2026-03-02', '네이버', 32600),
+                ('dhsys22:naver', '2026-03-01', 'GFA', 28619),
+                ('dhsys22:naver', '2026-03-02', 'GFA', 33190),
+                ('dhsys22:naver', '2026-03-01', 'AD', 36939),
+                ('dhsys22:naver', '2026-03-02', 'AD', 32794),
+                ('mkrmm:naver', '2026-03-01', 'GFA', 17260),
+                ('mkrmm:naver', '2026-03-02', 'GFA', 16399),
+                ('mkrmm:naver', '2026-03-02', 'AD', 16399),
+            ]
+            for adv_id, d, media, amount in seed_spends:
+                db.session.add(DailySpend(
+                    user_id=staff.id,
+                    advertiser_id=adv_id,
+                    date=date.fromisoformat(d),
+                    media=media,
+                    amount=amount,
+                ))
+            db.session.commit()
+            print(f'소진액 데이터 {len(seed_spends)}건 복구 완료')
 
 
 with app.app_context():
