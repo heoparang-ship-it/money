@@ -1,0 +1,20 @@
+[Unit]
+Description=소진액 관리 시스템 (Gunicorn)
+After=network.target
+
+[Service]
+User=sojin
+Group=sojin
+WorkingDirectory=/opt/sojinapp/webapp
+Environment="PATH=/opt/sojinapp/venv/bin"
+Environment="SECRET_KEY=xcom-sojin-prod-2026-change-me"
+Environment="PORT=5050"
+ExecStart=/opt/sojinapp/venv/bin/gunicorn app:app \
+    --bind 127.0.0.1:5050 \
+    --workers 2 \
+    --timeout 120
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
