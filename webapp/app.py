@@ -30,6 +30,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024  # 64MB (멀티 파일 업로드)
+# 근태플랫폼(goodmorningpeople.vercel.app) iframe 안에서 로그인 세션 유지용.
+# 크로스도메인 iframe = 서드파티 컨텍스트 → SameSite=None; Secure 없으면 세션 쿠키 차단됨 (HTTPS 전제)
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True
 
 db.init_app(app)
 
