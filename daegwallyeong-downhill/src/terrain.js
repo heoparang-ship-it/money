@@ -169,6 +169,7 @@ export class Terrain {
     group.name = 'terrain';
     const matNear = new THREE.MeshLambertMaterial({ vertexColors: !sat, map: sat ? sat.texNear : palette.detailTex });
     const matFar = sat ? new THREE.MeshLambertMaterial({ map: sat.texFar }) : matNear;
+    if (sat) { matNear.userData.ownMap = true; matFar.userData.ownMap = true; } // 스테이지를 바꿀 때 위성 텍스처도 함께 해제
     let tris = 0;
     for (const [key, b] of buckets) {
       const g = new THREE.BufferGeometry();

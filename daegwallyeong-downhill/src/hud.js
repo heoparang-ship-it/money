@@ -30,6 +30,7 @@ export class Hud {
     const ox = (W - (x1 - x0) * sc) / 2 - x0 * sc, oz = (W - (z1 - z0) * sc) / 2 - z0 * sc;
     this.mm = { pts, sc, ox, oz, track, stage };
     this.nitroMax = -1; this._last = {};
+    document.getElementById('h-mark').style.display = 'none';
     this.sayEl.classList.remove('on'); this.toastEl.style.opacity = 0; this.corner.style.opacity = 0; this.warn.style.display = 'none'; this.countEl.style.display = 'none';
   }
 
@@ -85,6 +86,9 @@ export class Hud {
     if (nk !== L.nk) { this.nitro.innerHTML = Array.from({ length: this.nitroMax }, (_, i) => `<i class="${i < h.nitro ? 'on' : ''}"></i>`).join(''); L.nk = nk; }
     const tg = (h.boost ? '<span style="color:#4fd2ff">니트로</span>' : '') + (h.draft ? '<span style="color:#9be88f">슬립스트림</span>' : '') + (h.over ? '<span style="color:#ff8a7d">과속! 밀린다</span>' : '') + (h.wake ? '<span style="color:#ffd21f">할배 각성</span>' : '') + (h.wait ? '<span>할배가 기다리는 중</span>' : '');
     if (tg !== L.tg) { this.tags.innerHTML = tg; L.tg = tg; }
+    const mk = this.mark || (this.mark = document.getElementById('h-mark'));
+    if (h.mark) { mk.style.display = 'block'; mk.style.left = h.mark.x.toFixed(1) + '%'; mk.style.top = h.mark.y.toFixed(1) + '%'; if (this.frame % 5 === 0) mk.firstElementChild.textContent = `할배 ${Math.round(h.mark.d)}m`; }
+    else if (mk.style.display !== 'none') mk.style.display = 'none';
     if (this.frame % 3 === 0) this._drawMap(game);
     if (this.sayTimer > 0) { this.sayTimer -= dt; if (this.sayTimer <= 0) this.sayEl.classList.remove('on'); }
     if (this.toastTimer > 0) { this.toastTimer -= dt; if (this.toastTimer <= 0) this.toastEl.style.opacity = 0; }

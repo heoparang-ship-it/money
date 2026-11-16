@@ -143,6 +143,9 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 #h-tags span{display:inline-block;padding:1px 8px;border-radius:99px;margin:0 2px;background:rgba(0,0,0,.55)}
 #h-corner{position:absolute;top:15%;left:50%;transform:translateX(-50%);font-size:clamp(26px,5vw,50px);font-weight:900;text-shadow:0 4px 0 #000;opacity:0;transition:opacity .15s;white-space:nowrap}
 #h-corner small{display:block;font-size:13px;text-align:center;letter-spacing:1px}
+#h-mark{position:absolute;display:none;transform:translate(-50%,-100%);text-align:center;font-size:12px;font-weight:800;color:#fff;text-shadow:0 1px 2px #000;white-space:nowrap;line-height:1.05}
+#h-mark span{background:rgba(226,56,43,.9);border-radius:8px;padding:1px 7px;display:inline-block}
+#h-mark i{display:block;font-style:normal;color:#e2382b;font-size:11px}
 #h-warn{position:absolute;top:36%;left:50%;transform:translateX(-50%);background:#f4c20d;color:#111;font-weight:900;border-radius:10px;padding:5px 14px;font-size:clamp(14px,2.4vw,20px);display:none;border:3px solid #111}
 #h-say{position:absolute;left:max(10px,env(safe-area-inset-left));top:clamp(86px,17vh,150px);max-width:min(430px,62vw);display:none;gap:8px;align-items:flex-start}
 #h-say.on{display:flex}
@@ -196,6 +199,7 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
   <div id="h-top"><div id="h-prog"><i id="h-pg">🛵</i><i id="h-pp">🏍️</i><i class="flag">🏁</i></div><div id="h-time">0:00.0</div></div>
   <canvas id="h-map" width="340" height="340"></canvas>
   <button id="h-pause" aria-label="일시정지">❚❚</button>
+  <div id="h-mark"><span></span><i>▼</i></div>
   <div id="h-corner"></div>
   <div id="h-warn"></div>
   <div id="h-say"><div class="face">👴</div><div class="bub"><small>황 영감 · 씨티백</small><span id="h-say-t"></span></div></div>

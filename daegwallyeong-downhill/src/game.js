@@ -405,6 +405,14 @@ export class Game {
       h.corner = { dir: c.dir, r: c.rMin, d: Math.max(0, d), turn: c.turn };
       break;
     }
+    // 멀리 앞선 할배 위치 표시 (화면 좌표)
+    h.mark = null;
+    const dist = g.s - p.s;
+    if (dist > 22 && dist < 400) {
+      const v = this._v3 || (this._v3 = new THREE.Vector3());
+      v.copy(this.gm.root.position); v.y += 2.3; v.project(this.camera);
+      if (v.z < 1 && Math.abs(v.x) < 0.96 && Math.abs(v.y) < 0.96) h.mark = { x: (v.x * 0.5 + 0.5) * 100, y: (-v.y * 0.5 + 0.5) * 100, d: dist };
+    }
     h.warn = null;
     if (this.obst) for (const ob of this.obst.list) {
       const d = ob.s - p.s;
