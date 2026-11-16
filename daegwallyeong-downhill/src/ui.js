@@ -6,6 +6,8 @@ import { fmtTime } from './hud.js';
 import { DS } from './track.js';
 
 const $ = (id) => document.getElementById(id);
+// 클로드 아티팩트 뷰어 안에서는 외부 프레임·외부 요청이 막혀 있다
+const EMBED_OK = typeof __ARTIFACT__ === 'undefined' || !__ARTIFACT__;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const stars = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
 
@@ -23,7 +25,14 @@ export class UI {
     $('bt-resume').onclick = () => app.resume();
     $('bt-retry').onclick = () => app.retry();
     $('bt-quit').onclick = () => app.quitRace();
-    $('bt-reset').onclick = () => { if (confirm('돈·개조·기록을 모두 지우고 처음부터 시작할까요?')) app.resetProgress(); };
+    // 확인 창 대신 두 번 누르기 (일부 환경에서는 confirm()이 뜨지 않는다)
+    const rs = $('bt-reset');
+    rs.onclick = () => {
+      if (rs.dataset.arm === '1') { rs.dataset.arm = ''; rs.textContent = '처음부터 다시'; app.resetProgress(); return; }
+      rs.dataset.arm = '1'; rs.textContent = '정말 지울까요? 한 번 더';
+      setTimeout(() => { rs.dataset.arm = ''; rs.textContent = '처음부터 다시'; }, 4000);
+    };
+    $('bt-portrait').onclick = () => $('rotate').classList.remove('need');
     $('h-pause').onclick = () => app.pause();
     $('bt-go').onclick = () => app.enterGrid();
     document.querySelectorAll('#set-panel .seg').forEach((seg) => seg.addEventListener('click', (e) => {
@@ -84,10 +93,10 @@ export class UI {
       <p>통과 기준: 할배와 <b>${st.pass.toFixed(1)}초 이내</b> 완주 (★★) · 할배를 이기면 ★★★${rec.best ? ` · 내 최고 ${fmtTime(rec.best)}` : ''}</p>
       <div class="row"><button class="btn" id="lv-go" ${un ? '' : 'disabled'}>${un ? '출전!' : '이전 레벨을 ★★ 이상으로 통과하세요'}</button>
       <a class="btn sec sm" href="${streetViewLink(inf.lat, inf.lon, inf.heading)}" target="_blank" rel="noopener">실제 도로 스트리트뷰 ↗</a>
-      <button class="btn sec sm" id="lv-gmap">${key ? '스트리트뷰 미리보기' : '구글 지도 미리보기'}</button></div>
+      ${EMBED_OK ? `<button class="btn sec sm" id="lv-gmap">${key ? '스트리트뷰 미리보기' : '구글 지도 미리보기'}</button>` : `<a class="btn sec sm" href="${satelliteLink(inf.lat, inf.lon, 16)}" target="_blank" rel="noopener">구글 위성지도 ↗</a>`}</div>
       <div id="gmap-wrap"></div>`;
     $('lv-go').onclick = () => this.app.startStage(st.id);
-    $('lv-gmap').onclick = () => {
+    if ($('lv-gmap')) $('lv-gmap').onclick = () => {
       const w = $('gmap-wrap');
       if (w.style.display === 'block') { w.style.display = 'none'; w.innerHTML = ''; return; }
       w.style.display = 'block';
@@ -217,6 +226,7 @@ export class UI {
     const g = this.app.game && this.app.game.google;
     $('set-gstatus').textContent = !s.gkey ? '키 없음 — 지형은 실제 고도 + 토지피복 색으로 그립니다. 스트리트뷰는 새 창 링크로 열 수 있습니다.'
       : g && g.lastError ? `마지막 오류: ${g.lastError}` : this.app.game && this.app.game.satOn ? '위성사진 적용 중 ✓' : '키 저장됨 — 다음 코스를 불러올 때 위성사진을 받습니다.';
+    $('set-env').textContent = EMBED_OK ? '' : '이 미리보기 화면에서는 외부 지도 서버 요청이 차단되어 위성사진이 적용되지 않습니다. 저장소의 index.html을 직접 열면 동작합니다.';
   }
 }
 

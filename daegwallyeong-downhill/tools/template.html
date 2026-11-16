@@ -7,7 +7,7 @@
 <title>대관령 다운힐: 씨티백 레전드</title>
 <!-- 지도: © OpenStreetMap contributors (ODbL), Overture Maps Foundation · 고도: Mapzen/Tilezen Terrain Tiles (AWS Open Data) · 3D: three.js (MIT) -->
 <style>
-:root{--y:#ffd21f;--r:#e2382b;--bg:#10141c;--pn:rgba(14,18,26,.86);--ln:rgba(255,255,255,.14);--tx:#f3f4f6;--mut:#a7adb8;--ok:#3ddc84}
+:root{color-scheme:dark;--y:#ffd21f;--r:#e2382b;--bg:#10141c;--pn:rgba(14,18,26,.86);--ln:rgba(255,255,255,.14);--tx:#f3f4f6;--mut:#a7adb8;--ok:#3ddc84}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);overflow:hidden;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;-webkit-user-select:none;user-select:none;touch-action:none}
 canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
@@ -43,7 +43,9 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 #lv-map{flex:1.15;min-width:0;position:relative;overflow:hidden}
 #lv-map canvas{width:100%;height:100%;display:block}
 #lv-map .cap{position:absolute;left:10px;bottom:8px;font-size:11px;color:var(--mut)}
-#lv-list{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;padding-right:4px}
+#lv-list{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:8px;padding-right:4px}
+#lv-list .lv{flex:0 0 auto}
+#lv-side{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:8px}
 .lv{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.05);border:2px solid transparent;text-align:left;width:100%}
 .lv.sel{border-color:var(--y);background:rgba(255,210,31,.1)}
 .lv.lock{opacity:.45}
@@ -166,9 +168,23 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 #scr-pause{align-items:center;justify-content:center;background:rgba(6,8,12,.7);z-index:20}
 #scr-pause .panel{padding:20px;display:flex;flex-direction:column;gap:10px;min-width:240px;text-align:center}
 #fatal{position:fixed;inset:0;z-index:99;background:#10141c;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;font-size:15px;line-height:1.6}
-#rotate{position:fixed;inset:0;z-index:50;background:rgba(10,12,18,.94);display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;text-align:center;font-weight:800;font-size:18px}
+#rotate{position:fixed;inset:0;z-index:50;background:rgba(10,12,18,.94);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;text-align:center;font-weight:800;font-size:18px;padding:24px}
+#rotate small{font-weight:600;color:var(--mut);font-size:13px}
 @media (orientation:portrait) and (max-width:700px){#rotate.need{display:flex}}
-@media (max-width:760px){.body{flex-direction:column}#lv-map{flex:0 0 34%}#scr-vs .cards{gap:8px}#scr-vs .card{padding:10px}}
+@media (orientation:portrait){
+#h-top{top:calc(max(8px,env(safe-area-inset-top)) + 66px);width:74vw}
+#h-map{width:92px;height:92px}
+#h-pause{top:calc(max(8px,env(safe-area-inset-top)) + 100px)}
+#h-say{top:calc(max(8px,env(safe-area-inset-top)) + 150px);max-width:86vw}
+#h-corner{top:30%}
+#h-speed{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 150px)}
+#t-steer{width:62%;height:36%}
+#t-nitro{right:max(18px,env(safe-area-inset-right));bottom:calc(max(20px,env(safe-area-inset-bottom)) + 130px);width:72px;height:72px}
+#scr-vs .cards{flex-direction:column;gap:6px}#scr-vs .vs{font-size:24px}#scr-vs .card .big{display:none}#scr-vs .card dl{font-size:12.5px;gap:1px 10px}
+#scr-title h1{font-size:15vw}#scr-title .logo{top:9vh}
+#scr-garage{background:rgba(8,10,16,.55)!important}
+}
+@media (max-width:760px){.body{flex-direction:column}#lv-map{flex:0 0 30%}#lv-detail p.long{display:none}#lv-detail .chip{font-size:11px;padding:2px 7px}#scr-vs .cards{gap:8px}#scr-vs .card{padding:10px}}
 @media (max-height:430px){#scr-title .logo{top:3vh}.lv{padding:6px 10px}#lv-detail p.long{display:none}#res-panel{padding:10px 14px;gap:5px}#res-head{font-size:26px}#res-times b{font-size:17px}#res-times div{padding:4px 8px}#res-rows{font-size:12px}#res-quote{padding:6px 10px;font-size:13px}#res-quote .face{font-size:22px}.sheet{gap:6px}.btn{padding:9px 16px;font-size:15px}#lv-detail{padding:8px 12px}#lv-detail p{font-size:12px}}
 </style>
 </head>
@@ -205,7 +221,7 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
   <header><button class="btn sec sm" data-go="title">← 뒤로</button><h3>코스 선택 <small style="font-size:13px;color:var(--mut);font-weight:600">실제 대관령 옛길 구간</small></h3><span class="money" data-money></span></header>
   <div class="body">
     <div class="panel" id="lv-map"><canvas id="lv-canvas"></canvas><div class="cap">대관령 정상(843 m) → 성산(72 m) · 북쪽이 위</div></div>
-    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+    <div id="lv-side">
       <div id="lv-list" class="scroll"></div>
       <div class="panel" id="lv-detail"></div>
     </div>
@@ -252,6 +268,7 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
   </div>
   <div class="stripe"></div>
   <div class="opt"><span class="note">저장 데이터(돈·개조·기록)</span><button class="btn red sm" id="bt-reset">처음부터 다시</button></div>
+  <div class="note" id="set-env"></div>
   <div class="note">조작 — 키보드: ←/→ 또는 A/D 기울이기 · ↓/S/스페이스 브레이크 · Shift/X 니트로 · P 일시정지 · 가속은 자동<br>터치: 왼쪽 패드 좌우로 밀기 · 오른쪽 브레이크/니트로 · 게임패드 지원</div>
 </div></section>
 
@@ -259,7 +276,7 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
   <button class="btn" id="bt-resume">계속 달리기</button><button class="btn sec" id="bt-retry">처음부터 다시</button><button class="btn sec" id="bt-quit">코스 선택으로</button>
 </div></section>
 
-<div id="rotate"><div style="font-size:54px">📱↻</div>화면을 가로로 돌려 주세요</div>
+<div id="rotate"><div style="font-size:54px">📱↻</div>화면을 가로로 돌리면 더 넓게 보입니다<small>회전이 안 되면 세로로도 할 수 있어요</small><button class="btn" id="bt-portrait">세로로 계속하기</button></div>
 <div id="fatal"></div>
 <script>/*__BUNDLE__*/</script>
 </body>

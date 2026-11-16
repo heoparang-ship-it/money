@@ -61,6 +61,13 @@ export class Game {
     this.camera.updateProjectionMatrix();
   }
 
+  /** 세로 화면에서는 좌우 시야가 너무 좁아지지 않게 수직 화각을 넓힌다 */
+  _fov(base) {
+    const asp = this.camera.aspect;
+    if (asp >= 1.15) return base;
+    return clamp(Math.max(base, (2 * Math.atan(Math.tan(0.54) / asp) * 180) / Math.PI), base, 98);
+  }
+
   disposeWorld() {
     if (this.world) { this.scene.remove(this.world); disposeTree(this.world); this.world = null; }
     for (const k of ['pm', 'gm']) if (this[k]) { this.scene.remove(this[k].root); this[k] = null; }
@@ -358,7 +365,7 @@ export class Game {
     this.camera.position.set(cx + (Math.random() - 0.5) * sh, cy + (Math.random() - 0.5) * sh, cz + (Math.random() - 0.5) * sh);
     this.camera.lookAt(a.x + this.camF.x * (9 + p.v * 0.3), a.y + 1.0 + (b.y - a.y) * 0.55, a.z + this.camF.z * (9 + p.v * 0.3));
     this.camera.rotateZ(p.lean * 0.16);
-    const fov = 60 + clamp(p.v / 62, 0, 1) * 15 + boost * 6;
+    const fov = this._fov(60 + clamp(p.v / 62, 0, 1) * 15 + boost * 6);
     if (Math.abs(fov - this.camera.fov) > 0.05) { this.camera.fov = lerp(this.camera.fov, fov, 0.1); this.camera.updateProjectionMatrix(); }
   }
 
@@ -378,7 +385,7 @@ export class Game {
       this.camera.position.set(o.x, o.y + 1.45 + 0.3 * Math.sin(this.orbit * 0.5), o.z);
       this.camera.lookAt((a.x + this._g.x) / 2, a.y + 0.95, (a.z + this._g.z) / 2);
     }
-    const fov = close ? 46 : 50;
+    const fov = this._fov(close ? 46 : 50);
     if (Math.abs(this.camera.fov - fov) > 0.1) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
   }
 
