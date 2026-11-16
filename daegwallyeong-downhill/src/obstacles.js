@@ -56,14 +56,24 @@ export function buildObstacles(world, stage, kind, scene) {
   const full = len > 3000; // 풀코스
   const place = (i, d) => { track.at(i * DS, d, o); return o; };
   const types = kind === 'mixed' ? ['rocks', 'deer', 'tractor'] : [kind];
-  // 코너 탈출 직후의 직선 구간 후보
+  // 일정 간격의 창마다 "가장 곧은 지점"을 골라 놓는다 (굽은 스테이지에서도 반드시 배치되도록)
+  const gapOf = { rocks: 85, deer: 110, tractor: 190 };
   const spots = [];
-  for (let i = stage.i0 + 90; i < stage.i1 - 60; i += 1) {
-    if (Math.abs(track.K[i]) < 0.006 && Math.abs(track.K[i + 12]) < 0.008 && Math.abs(track.K[Math.max(0, i - 12)]) < 0.012) { spots.push(i); i += full ? 260 : 85; }
+  let i = stage.i0 + 80, n = 0;
+  while (i < stage.i1 - 70) {
+    const type = types[n % types.length], win = Math.round((gapOf[type] || 100) * (full ? 2.6 : 1));
+    let best = -1, bestK = 1e9;
+    for (let j = i; j < Math.min(stage.i1 - 60, i + win); j += 2) {
+      let k = 0;
+      for (let m = -8; m <= 10; m += 2) k = Math.max(k, Math.abs(track.K[clamp(j + m, 0, track.n - 1)]));
+      if (k < bestK) { bestK = k; best = j; }
+    }
+    if (best > 0 && bestK < 0.03 && !track.BR[best]) spots.push([best, type]);
+    i += win; n++;
   }
   for (let k = 0; k < spots.length; k++) {
-    const i = spots[k], type = types[k % types.length], hw = track.HW[i];
-    if (rnd() < 0.25) continue;
+    const [i, type] = spots[k], hw = track.HW[i];
+    if (rnd() < 0.15) continue;
     if (type === 'rocks') {
       const d = (rnd() < 0.5 ? -1 : 1) * (hw * 0.35 + rnd() * hw * 0.4), r = 0.45 + rnd() * 0.3;
       const m = makeRock(r, rnd); const p = place(i, d); m.position.set(p.x, p.y, p.z); group.add(m);
