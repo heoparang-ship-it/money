@@ -1,0 +1,42 @@
+// 빌드: 지도 데이터를 압축해 번들에 넣고, 게임 전체를 index.html 한 파일로 만든다.
+import fs from 'node:fs';
+import path from 'node:path';
+import zlib from 'node:zlib';
+import { fileURLToPath } from 'node:url';
+import esbuild from 'esbuild';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const rd = (f) => fs.readFileSync(path.join(root, f));
+const meta = JSON.parse(rd('data/dem.json'));
+function packI16(file, nx, ny) {
+  const b = rd(file), a = new Int16Array(b.buffer, b.byteOffset, nx * ny), o = new Int16Array(nx * ny);
+  for (let j = 0; j < ny; j++) {
+    const r = j * nx;
+    o[r] = j > 0 ? a[r] - a[r - nx] : a[r];
+    for (let i = 1; i < nx; i++) o[r + i] = a[r + i] - a[r + i - 1];
+  }
+  return zlib.gzipSync(Buffer.from(o.buffer), { level: 9 }).toString('base64');
+}
+const course = JSON.parse(rd('data/course.json'));
+const features = JSON.parse(rd('data/features.json'));
+const data = {
+  course, meta, features,
+  near: packI16('data/dem_near.i16', meta.near.nx, meta.near.ny),
+  far: packI16('data/dem_far.i16', meta.far.nx, meta.far.ny),
+  lc: zlib.gzipSync(rd('data/landcover.u8'), { level: 9 }).toString('base64'),
+};
+fs.writeFileSync(path.join(root, 'src/_data.generated.js'), `// 자동 생성 파일 (tools/build.mjs). 직접 고치지 마세요.\nexport default ${JSON.stringify(data)};\n`);
+
+const dev = process.argv.includes('--dev');
+const res = await esbuild.build({
+  entryPoints: [path.join(root, 'src/main.js')], bundle: true, format: 'iife', minify: !dev, target: ['es2020'],
+  write: false, legalComments: 'none', charset: 'utf8', logLevel: 'warning',
+  define: { __BUILD__: JSON.stringify(new Date().toISOString().slice(0, 10)) },
+});
+const js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
+const tpl = rd('tools/template.html').toString('utf8');
+if (!tpl.includes('/*__BUNDLE__*/')) throw new Error('template marker missing');
+const html = tpl.replace('/*__BUNDLE__*/', () => js);
+fs.writeFileSync(path.join(root, 'index.html'), html);
+const kb = (n) => (n / 1024).toFixed(0) + ' KB';
+console.log(`index.html ${kb(html.length)} (js ${kb(js.length)}, 고도 ${kb(data.near.length + data.far.length)}, 피처 ${kb(JSON.stringify(features).length)})`);
