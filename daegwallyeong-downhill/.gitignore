@@ -1,0 +1,4 @@
+node_modules/
+tests/shots/
+*.log
+src/_data.generated.js

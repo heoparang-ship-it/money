@@ -1,0 +1,20 @@
+{
+  "name": "daegwallyeong-downhill",
+  "version": "0.2.0",
+  "private": true,
+  "description": "대관령 다운힐: 씨티백 레전드 — 실제 대관령 옛길(지방도 456호선)을 달리는 도트 그래픽 코믹 다운힐 웹 레이싱 게임",
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "serve": "python3 -m http.server 8765",
+    "sim": "node tools/sim.mjs",
+    "calibrate": "node tools/calibrate.mjs",
+    "test": "node tests/data.test.mjs && node tests/smoke.mjs",
+    "test:sat": "node tests/sat_mock.mjs",
+    "test:full": "FULL=1 node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "galmuri": "^2.40.3"
+  }
+}

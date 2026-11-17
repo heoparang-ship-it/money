@@ -1,0 +1,21 @@
+{
+ "lon0": 128.792614,
+ "lat0": 37.705817,
+ "R": 6371008.8,
+ "near": {
+  "x0": -4000,
+  "y0": -3200,
+  "step": 12.5,
+  "nx": 641,
+  "ny": 513
+ },
+ "far": {
+  "x0": -19000.0,
+  "y0": -17000.0,
+  "step": 125.0,
+  "nx": 369,
+  "ny": 273
+ },
+ "unit": "decimeter int16 LE, row-major, rows = y(north) ascending",
+ "source": "Mapzen/Tilezen Terrain Tiles (terrarium) on AWS Open Data; SRTM \ub4f1 \uacf5\uac1c DEM \ud569\uc131"
+}
