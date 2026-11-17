@@ -19,7 +19,7 @@ export function runStage(st, skill, upLevel, verbose = false) {
   const ref = stageReference(track, stage, grip);
   const params = refParams(Math.max(0, Math.min(5, upLevel)));
   const bike = new PlayerBike(track, params, { assist: 0.5 });
-  bike.place(stage.s0 - 6, -1.6);
+  bike.place(stage.s0 - 6, -2.4);
   const gp = new Grandpa(track, stage, ref);
   const bot = new Bot(track, ref, params, { skill, grip });
   const dt = 1 / 120, inp = {};

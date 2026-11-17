@@ -1,8 +1,7 @@
 // 구글 지도 연동.
 //  - 키 없이: 공식 Maps URL(스트리트뷰·위성지도 새 창), 지도 임베드.
-//  - Google Maps Platform 키가 있으면: Map Tiles API 위성사진을 실제 지형에 입히고, Maps Embed API 스트리트뷰를 보여 준다.
+//  - Google Maps Platform 키가 있으면: Map Tiles API 위성사진을 받아 도트로 바꿔 바닥에 깔고, Maps Embed API 스트리트뷰를 보여 준다.
 // 키는 사용자가 설정 화면에 직접 넣으며 저장소·코드에는 절대 넣지 않는다.
-import * as THREE from 'three';
 
 const TILE = 'https://tile.googleapis.com';
 
@@ -87,24 +86,5 @@ export class GoogleTiles {
       if (r.ok) { const j = await r.json(); if (j.copyright) this.copyright = j.copyright; }
     } catch (e) { /* 표기 문자열만 못 받은 경우 기본 문구 사용 */ }
     return m;
-  }
-
-  /**
-   * 지형용 위성사진 세트. nearBox/farBox: 지역좌표 [x0, z0, x1, z1].
-   * 반환: { texNear, texFar, uv(x, z, near), inNear(x, z, size), attribution }
-   */
-  async build(proj, nearBox, farBox, maxPxNear, onProgress) {
-    const ll = (bx) => { const a = proj.toLonLat(bx[0], bx[3]), b = proj.toLonLat(bx[2], bx[1]); return [a[0], a[1], b[0], b[1]]; };
-    const nb = ll(nearBox), fb = ll(farBox);
-    const far = await this.mosaic(fb[0], fb[1], fb[2], fb[3], 2048, 13, (p) => onProgress && onProgress(p * 0.3));
-    const near = await this.mosaic(nb[0], nb[1], nb[2], nb[3], maxPxNear, 19, (p) => onProgress && onProgress(0.3 + p * 0.7));
-    const mk = (m) => { const t = new THREE.CanvasTexture(m.canvas); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
-    const uvOf = (m, x, z) => { const l = proj.toLonLat(x, z), p = mercPx(l[0], l[1], m.z); return [(p[0] - m.px0) / m.W, 1 - (p[1] - m.py0) / m.H]; };
-    return {
-      texNear: mk(near), texFar: mk(far), zoomNear: near.z,
-      uv: (x, z, isNear) => uvOf(isNear ? near : far, x, z),
-      inNear: (x, z, s) => x >= nearBox[0] && x + s <= nearBox[2] && z >= nearBox[1] && z + s <= nearBox[3],
-      attribution: this.copyright || `지도 데이터 ©${new Date().getFullYear()} Google`,
-    };
   }
 }

@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { loadWorldData } from '../tools/lib/node_data.mjs';
 import { STAGES } from '../src/config.js';
+import { HANDICAPS, MEDLEY, TALK, lineCount } from '../src/talk.js';
 import { runStage } from '../tools/sim.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,3 +40,15 @@ for (const id of [1, 5, 9]) {
   check(`레벨 ${id}: 빠른 봇(개조 +1)은 이긴다`, fast.time < fast.gTime, `${(fast.gTime - fast.time).toFixed(2)}초 앞`);
   check(`레벨 ${id}: 봇이 넘어지지 않는다`, slow.crashes === 0 && fast.crashes === 0);
 }
+
+// 할배의 핸디캡과 트래시토크
+const hcOk = STAGES.every((st) => HANDICAPS[st.handicap] && (TALK.start[st.handicap] || []).length >= 2 && TALK.winBy[st.handicap] && TALK.loseBy[st.handicap] && HANDICAPS[st.handicap].sincerity < 20);
+check('레벨 10개 모두 핸디캡·출발 대사·승패 대사가 있고 진심도는 20% 미만', hcOk, STAGES.map((st) => st.handicap).join(', '));
+check('풀코스 메들리 9종 모두 정의·대사 있음', MEDLEY.length === 9 && MEDLEY.every((h) => HANDICAPS[h] && TALK.by[h].length >= 5) && TALK.by.serious.length >= 3);
+check('대사 200줄 이상', lineCount() >= 200, `${lineCount()}줄`);
+const all = [];
+(function walk(v) { if (typeof v === 'string') all.push(v); else if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') Object.values(v).forEach(walk); })(TALK);
+const banned = ['씨발', '시발', '병신', '새끼', '지랄', '좆', '닥쳐', '꺼져', '멍청', '바보', '못생', '돼지', '뚱뚱'];
+const bad = all.filter((l) => banned.some((b) => l.includes(b)));
+check('대사에 욕설·외모 비하 표현 없음', bad.length === 0, bad.slice(0, 2).join(' | '));
+check('대사가 너무 길지 않다 (주행 중 읽을 수 있게 40자 이하)', all.every((l) => l.length <= 40), `가장 긴 줄 ${Math.max(...all.map((l) => l.length))}자`);

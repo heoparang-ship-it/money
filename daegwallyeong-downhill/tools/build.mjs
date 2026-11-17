@@ -36,13 +36,19 @@ async function bundle(artifact) {
   });
   return res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 }
-const tpl = rd('tools/template.html').toString('utf8');
+// 도트 글꼴(갈무리11, 쓰는 글자만 추린 woff2)을 스타일시트 안에 넣는다
+const b64 = (f) => rd(f).toString('base64');
+let tpl = rd('tools/template.html').toString('utf8');
+for (const [mark, file] of [['/*__FONT_R__*/', 'data/font/Galmuri11.sub.woff2'], ['/*__FONT_B__*/', 'data/font/Galmuri11-Bold.sub.woff2']]) {
+  if (!tpl.includes(mark)) throw new Error('font marker missing: ' + mark);
+  tpl = tpl.replace(mark, () => b64(file));
+}
 if (!tpl.includes('/*__BUNDLE__*/')) throw new Error('template marker missing');
 const js = await bundle(false);
 const html = tpl.replace('/*__BUNDLE__*/', () => js);
 fs.writeFileSync(path.join(root, 'index.html'), html);
 const kb = (n) => (n / 1024).toFixed(0) + ' KB';
-console.log(`index.html ${kb(html.length)} (js ${kb(js.length)}, 고도 ${kb(data.near.length + data.far.length)}, 피처 ${kb(JSON.stringify(features).length)})`);
+console.log(`index.html ${kb(html.length)} (js ${kb(js.length)}, 고도 ${kb(data.near.length + data.far.length)}, 피처 ${kb(JSON.stringify(features).length)}, 글꼴 ${kb(b64('data/font/Galmuri11.sub.woff2').length + b64('data/font/Galmuri11-Bold.sub.woff2').length)})`);
 
 // 클로드 아티팩트용: 뷰어가 문서 골격을 씌우므로 <html>/<head>/<body> 없이 내용만 내보낸다.
 const art = process.argv.find((a) => a.startsWith('--artifact='));

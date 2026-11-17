@@ -1,4 +1,4 @@
-// 테스트 공용: 정적 서버 + 헤드리스 크로미움(소프트웨어 WebGL).
+// 테스트 공용: 정적 서버 + 헤드리스 크로미움 (Canvas 2D라 GPU 옵션이 필요 없다).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,20 +18,20 @@ export async function launch() {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(d);
     });
   }).listen(0);
-  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch();
   const url = (q = '') => `http://127.0.0.1:${server.address().port}/index.html?${q}`;
   const close = async () => { await browser.close(); server.close(); };
   return { browser, url, close };
 }
 
-export async function openGame(browser, url, { width = 800, height = 450, init } = {}) {
-  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
+export async function openGame(browser, url, { width = 800, height = 450, dpr = 1, init } = {}) {
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: dpr });
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   if (init) await page.addInitScript(init);
   await page.goto(url);
-  await page.waitForFunction(() => window.__dh && window.__dh.game && window.__dh.game.world && window.__dh.game.mode !== 'loading' && window.__dh.game.mode !== 'boot', null, { timeout: 180000 });
+  await page.waitForFunction(() => window.__dh && window.__dh.game && window.__dh.game.world && window.__dh.game.mode !== 'loading' && window.__dh.game.mode !== 'boot', null, { timeout: 60000 });
   return { page, errors };
 }
 

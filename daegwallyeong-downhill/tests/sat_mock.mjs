@@ -1,6 +1,6 @@
 // 구글 위성사진 경로 모의 검증.
-// 실제 API 키 없이, tile.googleapis.com 요청을 가로채 "실제 코스 선형을 자홍색으로 그린 가짜 타일"을 돌려준다.
-// 세션 생성 → 타일 모자이크 → 지형 텍스처 → UV 정합(자홍색 띠가 3D 도로 양옆에 대칭으로 깔리는지)을 확인한다.
+// 실제 API 키 없이, tile.googleapis.com 요청을 가로채 "실제 코스 선형을 자홍색(중심선 좌우 9 m)으로 그린 가짜 타일"을 돌려준다.
+// 세션 생성 → 타일 모자이크 → 도트 바닥 변환 → 좌표 정합(자홍색 띠가 도트 도로 양옆에 대칭으로 깔리는지)을 확인한다.
 // 주의: 이 테스트는 요청 형식과 좌표 정합만 검증한다. 실제 구글 서버 응답·과금·약관 동작은 키가 있어야 확인된다.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -64,18 +64,41 @@ await ctx.route('https://tile.googleapis.com/**', async (route) => {
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.addInitScript(() => { localStorage.setItem('dgr_downhill_save_v1', JSON.stringify({ v: 1, money: 0, up: {}, stages: {}, settings: { assist: 0.5, diff: 0, quality: 'mid', sound: 0, gkey: 'MOCK_KEY', sat: 1 } })); });
+await page.addInitScript(() => { localStorage.setItem('dgr_downhill_save_v1', JSON.stringify({ v: 1, money: 0, up: {}, stages: {}, settings: { assist: 0.5, diff: 0, sound: 0, gkey: 'MOCK_KEY', sat: 1 } })); });
 await page.goto(url('stage=3&auto=1'));
-await page.waitForFunction(() => window.__dh && window.__dh.game && window.__dh.game.mode === 'race' && window.__dh.game.raceT > 3, null, { timeout: 240000, polling: 300 });
-const info = await page.evaluate(() => { const g = window.__dh.game; return { satOn: g.satOn, err: g.google.lastError, attr: document.getElementById('h-attr').textContent }; });
-await page.screenshot({ path: path.join(SHOTS, 'sat_mock.png'), timeout: 90000 });
-// 위에서 내려다본 정합 확인용 장면
-await page.evaluate(() => { const g = window.__dh.game; window.__dh.paused = true; const p = g.pm.root.position; g.camera.position.set(p.x, p.y + 150, p.z + 1); g.camera.lookAt(p.x, p.y, p.z); g.camera.fov = 50; g.camera.updateProjectionMatrix(); g.render(); });
-await page.screenshot({ path: path.join(SHOTS, 'sat_mock_top.png'), timeout: 90000 });
-check('위성사진 모드 켜짐', info.satOn === true, info.err || '');
+await page.waitForFunction(() => window.__dh && window.__dh.game && window.__dh.game.mode === 'race' && window.__dh.game.raceT > 3, null, { timeout: 120000, polling: 300 });
+const info = await page.evaluate(() => {
+  const g = window.__dh.game, w = g.world, t = g.track, CH = 128, o = {}, cache = new Map();
+  // 화면에 떠 있는 청크에서 도로 중심선 기준 d(m) 위치의 바닥색을 읽는다
+  const px = (s, d) => {
+    w.trackPx(s, d, o);
+    const cx = Math.floor(o.x / CH), cy = Math.floor(o.y / CH), k = cx + ',' + cy;
+    let img = cache.get(k);
+    if (img === undefined) { const c = w.chunks.get(k); img = c ? c.getContext('2d').getImageData(0, 0, CH, CH).data : null; cache.set(k, img); }
+    if (!img) return null;
+    const p = ((Math.round(o.y) - cy * CH) * CH + Math.round(o.x) - cx * CH) * 4;
+    return [img[p], img[p + 1], img[p + 2]];
+  };
+  const mag = (c) => c && c[0] > 170 && c[1] < 110 && c[2] > 110;
+  const cnt = { nearL: [0, 0], nearR: [0, 0], farL: [0, 0], farR: [0, 0] };
+  for (let s = g.player.s - 30; s < g.player.s + 60; s += 0.5) {
+    const hw = t.at(s, 0, {}).hw;
+    if (Math.abs(hw - 5) > 0.05) continue; // 확폭 구간은 건너뛴다
+    for (const side of [1, -1]) {
+      for (const d of [7.7, 8.0, 8.3]) { const c = px(s, d * side); if (c) { const e = cnt[side > 0 ? 'nearL' : 'nearR']; e[1]++; if (mag(c)) e[0]++; } }
+      for (const d of [10.6, 11.2, 12]) { const c = px(s, d * side); if (c) { const e = cnt[side > 0 ? 'farL' : 'farR']; e[1]++; if (mag(c)) e[0]++; } }
+    }
+  }
+  const f = (e) => (e[1] ? e[0] / e[1] : -1);
+  return { satOn: g.satOn, err: g.satError, attr: document.getElementById('h-attr').textContent, zoom: w.sat && w.sat.z, nearL: f(cnt.nearL), nearR: f(cnt.nearR), farL: f(cnt.farL), farR: f(cnt.farR), n: cnt.nearL[1] };
+});
+await page.screenshot({ path: path.join(SHOTS, 'sat_mock.png') });
+check('위성사진 도트 바닥 켜짐', info.satOn === true, info.err || `줌 ${info.zoom}`);
 check('세션 요청 1회 이상', reqs.session >= 1, `session ${reqs.session}`);
 check('타일 요청', reqs.tiles > 10, `tiles ${reqs.tiles}`);
 check('요청 형식(키·세션·mapType)', reqs.bad.length === 0, reqs.bad.slice(0, 3).join(' | '));
+check('좌표 정합: 가짜 타일의 도로 띠(±9 m)가 도트 도로 양옆 8 m 지점에 보인다', info.n > 100 && info.nearL > 0.1 && info.nearR > 0.1, `왼쪽 ${(info.nearL * 100).toFixed(0)}%, 오른쪽 ${(info.nearR * 100).toFixed(0)}% (갓길 디더링에 일부 가려짐), 표본 ${info.n}`);
+check('좌표 정합: 11 m 밖에는 띠가 없다 (어긋남 1.5 m 미만)', info.farL < 0.03 && info.farR < 0.03, `왼쪽 ${(info.farL * 100).toFixed(1)}%, 오른쪽 ${(info.farR * 100).toFixed(1)}%`);
 check('저작권 표기 노출', /Google/.test(info.attr), info.attr);
 check('페이지 오류 없음', errors.length === 0, errors.slice(0, 2).join(' | '));
 await close();

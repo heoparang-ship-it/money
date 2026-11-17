@@ -6,7 +6,9 @@ import { UI } from './ui.js';
 import { Input } from './input.js';
 import { GameAudio } from './audio.js';
 import { loadSave, writeSave, resetSave, stageUnlocked } from './save.js';
-import { STAGES, UPGRADES, LINES } from './config.js';
+import { STAGES, UPGRADES } from './config.js';
+import { TALK } from './talk.js';
+import { ICONS, pixUrl } from './px/sprites.js';
 import { clamp } from './geo.js';
 
 const $ = (id) => document.getElementById(id);
@@ -15,39 +17,60 @@ const pick = (a) => a[(Math.random() * a.length) | 0];
 class App {
   constructor() {
     this.params = new URLSearchParams(location.search);
+    this.speed = clamp(Math.round(Number(this.params.get('speed')) || 1), 1, 8); // 시험용 배속 (?speed=4)
     this.save = loadSave();
     this.audio = new GameAudio();
     this.audio.setEnabled(this.save.settings.sound);
+    this.px = 2;
+    this.fit();
+    const root = document.documentElement.style;
+    root.setProperty('--heart', `url(${pixUrl(ICONS.heart)})`);
+    root.setProperty('--heart-off', `url(${pixUrl(ICONS.heartOff)})`);
+    root.setProperty('--star', `url(${pixUrl(ICONS.star)})`);
     this.input = new Input();
     this.hud = new Hud();
     this.paused = false; this.state = 'menu'; this.dirtyWorld = false; this.inp = {}; this.last = 0;
     const unlock = () => this.audio.unlock();
     addEventListener('pointerdown', unlock); addEventListener('keydown', unlock);
     this.touch = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
-    if (this.touch) $('rotate').classList.add('need');
     addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch' && !this.touch) { this.touch = true; if (this.state === 'race') this.hud.setTouch(true); } });
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.state === 'race' && !this.paused) this.pause(); });
   }
 
-  bootMsg(text) { const f = $('fatal'); f.style.display = text ? 'flex' : 'none'; f.innerHTML = text || ''; }
+  /**
+   * 도트가 뭉개지지 않게 글자 크기를 정한다: 글꼴 한 칸(1/11 em)이 화면 픽셀의 정수 배가 되도록.
+   * --p = UI 도트 한 칸의 CSS 길이. 테두리·여백·아이콘은 모두 이 값의 배수로 그린다.
+   */
+  fit() {
+    const dpr = window.devicePixelRatio || 1, vmin = Math.min(innerWidth, innerHeight), vmax = Math.max(innerWidth, innerHeight);
+    const target = clamp(Math.min(vmin * 0.036, vmax * 0.022), 12, 22);
+    const k = Math.max(1, Math.round((target * dpr) / 11)), ks = Math.min(k, Math.max(k - 1, Math.ceil((10 * dpr) / 11)));
+    const root = document.documentElement.style, u = (n) => (11 * n) / dpr + 'px';
+    this.px = k / dpr;
+    root.setProperty('--p', this.px + 'px');
+    root.setProperty('--fs', u(ks)); root.setProperty('--fm', u(k)); root.setProperty('--fl', u(k * 2)); root.setProperty('--fx', u(k * 3));
+    root.setProperty('--logo', u(k * (vmin > 640 && innerWidth > 900 ? 5 : innerWidth > 340 ? 3 : 2)));
+  }
+
+  bootMsg(html) { const f = $('fatal'); f.style.display = html ? 'flex' : 'none'; f.innerHTML = html || ''; }
 
   async boot() {
-    this.bootMsg('<div><div style="font-size:44px">🛵</div><b style="font-size:20px">대관령 올라가는 중…</b><div id="boot-p" style="color:#a7adb8;margin-top:6px">실제 지도 데이터를 푸는 중</div></div>');
+    this.bootMsg('<div><b>대관령 올라가는 중</b><small id="boot-p">실제 지도 데이터를 푸는 중</small></div>');
+    if (document.fonts && document.fonts.load) { try { await Promise.all([document.fonts.load('11px Galmuri11'), document.fonts.load('bold 11px Galmuri11')]); } catch (e) { /* 기본 글꼴로 계속 */ } }
     this.data = await loadWorldData();
     this.game = new Game($('gl'), this.data, (t, p) => this.onGameEvent(t, p));
-    let q = this.params.get('q') || this.save.settings.quality;
-    if (!['low', 'mid', 'high'].includes(q)) q = this.autoQuality();
-    this.game.setQuality(q);
     this.game.autopilot = this.params.has('auto');
     if (this.params.get('skill')) this.game.autopilotSkill = Number(this.params.get('skill'));
     this.ui = new UI(this);
-    addEventListener('resize', () => this.game.resize());
+    this.game.ui = (this.px * (window.devicePixelRatio || 1)) / this.game.S;
+    addEventListener('resize', () => { this.fit(); this.game.resize(); this.game.ui = (this.px * (window.devicePixelRatio || 1)) / this.game.S; this.ui.relayout(); });
     const fs = $('bt-full');
     if (document.fullscreenEnabled && fs) {
-      fs.style.display = 'inline-block';
+      fs.style.display = 'inline-flex';
       fs.onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); };
     }
-    const want = Number(this.params.get('stage')) || STAGES.reduce((m, s) => (stageUnlocked(this.save, s.id) ? s.id : m), 1);
+    const resume = this.resumeSel && stageUnlocked(this.save, this.resumeSel) ? this.resumeSel : 0;
+    const want = Number(this.params.get('stage')) || resume || STAGES.reduce((m, s) => (stageUnlocked(this.save, s.id) ? s.id : m), 1);
     const st = STAGES.find((s) => s.id === want) || STAGES[0];
     this.ui.sel = st.id;
     await this.game.loadStage(st, this.save.up, this.save.settings, (p, tip) => { const el = $('boot-p'); if (el) el.textContent = `${tip || ''} ${(p * 100).toFixed(0)}%`; });
@@ -57,20 +80,11 @@ class App {
     if (this.params.has('stage')) this.startStage(st.id);
   }
 
-  autoQuality() {
-    let soft = false;
-    try {
-      const gl = this.game.renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
-      const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
-      soft = /swiftshader|llvmpipe|software/i.test(name);
-    } catch (e) { /* 정보 없음 */ }
-    if (soft) return 'low';
-    return this.touch || Math.min(innerWidth, innerHeight) < 600 ? 'mid' : 'high';
-  }
-
   // ------------------------------------------------------------ 화면 전환
   onScreen(name) {
     if (!this.game || !this.game.world) return;
+    const sel = STAGES.find((s) => s.id === this.ui.sel) || STAGES[0];
+    this.game.menuHandicap = stageUnlocked(this.save, sel.id) ? sel.handicap : 'coffee';
     if (name === 'title' || name === 'levels') { this.state = 'menu'; this.paused = false; this.game.mode = 'menu'; this.hud.show(false); this.hud.setTouch(false); }
     else if (name === 'garage') { this.state = 'menu'; this.paused = false; this.game.mode = 'garage'; this.hud.show(false); this.hud.setTouch(false); }
   }
@@ -103,15 +117,17 @@ class App {
     const g = this.game;
     this.audio.unlock();
     this.ui.show(null);
-    this.hud.setStage(g.stage, this.data.track, g.satInfo);
-    this.hud.show(true); this.hud.setTouch(this.touch);
+    const rec = this.save.stages[g.stage.id] || {};
+    g.info = { tries: rec.tries || 0, wins: rec.wins || 0 };
     g.toGrid();
+    this.hud.setStage(g.stage, g.world, g.satInfo);
+    this.hud.show(true); this.hud.setTouch(this.touch);
     this.state = 'race'; this.paused = false;
     // 처음 몇 판은 조작법을 띄운다
     const tries = Object.values(this.save.stages).reduce((n, r) => n + (r.tries || 0), 0);
     this.hud.help(tries < 3 ? (this.touch
-      ? '<b>왼쪽 패드</b>를 좌우로 밀어 기울이기 · <b>오른쪽 버튼</b> 브레이크<br>가속은 자동 · 코너 앞에서 미리 감속!'
-      : '<b>← →</b> 기울이기 · <b>↓ / 스페이스</b> 브레이크 · <b>Shift</b> 니트로<br>가속은 자동 · 코너 앞에서 미리 감속!') : '', 8);
+      ? '<b>왼쪽 패드</b>를 좌우로 밀어 기울이기 · <b>BRAKE</b> 브레이크<br>가속은 자동 · 좌우는 바이크 기준'
+      : '<b>← →</b> 기울이기 · <b>↓ / 스페이스</b> 브레이크 · <b>Shift</b> 니트로<br>가속은 자동 · 좌우는 바이크 기준') : '', 8);
     clearTimeout(this._cd);
     this._cd = setTimeout(() => { if (this.state === 'race') g.startCountdown(); }, 900);
   }
@@ -122,14 +138,13 @@ class App {
 
   // ------------------------------------------------------------ 게임 이벤트
   onGameEvent(type, p) {
-    if (type === 'count') {
-      this.hud.count(p); this.audio.play(p > 0 ? 'beep' : 'go');
-      if (p <= 0 && this.save.up.sticker && Math.random() < 0.6) setTimeout(() => this.state === 'race' && this.hud.say(LINES.sticker[0]), 3600);
-    } else if (type === 'say') this.hud.say(p);
+    if (type === 'count') { this.hud.count(p); this.audio.play(p > 0 ? 'beep' : 'go'); }
+    else if (type === 'say') this.hud.say(p);
     else if (type === 'toast') this.hud.toast(p);
     else if (type === 'sfx') this.audio.play(p);
+    else if (type === 'hearts') { this.hud.hearts(p); this.audio.play('deny'); }
     else if (type === 'notice') { this.ui.setLoad(0.4, p); }
-    else if (type === 'finish') { this.audio.play(p.win ? 'win' : 'lose'); this.hud.toast(p.dnf ? '시간 초과…' : p.win ? '할배를 이겼다!!' : '할배 승…'); }
+    else if (type === 'finish') { this.audio.play(p.win ? 'win' : 'lose'); this.hud.toast(p.dnf ? 'TIME OVER' : p.win ? 'YOU WIN!!' : '할배 승'); }
     else if (type === 'result') this.onResult(p);
   }
 
@@ -142,6 +157,7 @@ class App {
       if (r.win) { add('할배 격파!', base * 2.5); if (firstWin) add('첫 승리 보너스', base * 2.5); }
       else add('할배와 접전', base * clamp(1 - r.gap / 8, 0, 1));
       if (r.crashes === 0) add('무사고', base * 0.4);
+      add(`남은 멘탈 ×${r.hearts}`, base * 0.08 * r.hearts);
       add(`클린 코너 ×${r.clean}`, 3000 * r.clean);
       add(`선두 주행 ${Math.round(r.led)}초`, 1000 * Math.round(r.led));
     }
@@ -154,16 +170,20 @@ class App {
     rec.tries++;
     const reward = this.reward(st, r, r.win && !rec.wins);
     save.money += reward.total;
-    const now = r.dnf ? 0 : r.win ? 3 : r.gap <= st.pass ? 2 : 1;
+    const now = r.dnf ? 0 : r.win ? 3 : r.gap <= st.pass ? 2 : 1, before = rec.stars;
     rec.stars = Math.max(rec.stars, now);
     if (r.win) rec.wins++;
     if (!r.dnf && (!rec.best || r.pTime < rec.best)) rec.best = r.pTime;
     writeSave(save);
-    const quote = r.win ? (st.boss ? LINES.bossLose[0] : pick(LINES.lose)) : pick(LINES.win);
+    // 이겨도 져도 할배는 한마디 한다 (핸디캡에 맞춘 말이 먼저)
+    const by = r.win ? TALK.loseBy[st.handicap] : TALK.winBy[st.handicap];
+    const quote = r.win ? (st.boss || Math.random() < 0.65 ? by : pick(TALK.lose)) : Math.random() < 0.65 ? by : pick(TALK.win);
     this.state = 'result';
     this.hud.show(false); this.hud.setTouch(false);
-    this.ui.renderResult(st, r, reward, quote, stageUnlocked(save, st.id + 1));
+    const nextUnlocked = stageUnlocked(save, st.id + 1);
+    this.ui.renderResult(st, r, reward, quote, { stars: now, nextUnlocked, levelUp: before < 2 && now >= 2 && st.id < STAGES.length });
     this.ui.show('result');
+    if (before < 2 && now >= 2) this.audio.play('buy');
     this.lastResult = { r, reward };
   }
 
@@ -185,8 +205,7 @@ class App {
     if (k === 'assist' || k === 'diff') s[k] = parseFloat(v);
     else if (k === 'sound') { s.sound = v === '1' ? 1 : 0; this.audio.setEnabled(s.sound); }
     else if (k === 'sat') { s.sat = v === '1' ? 1 : 0; this.dirtyWorld = true; }
-    else if (k === 'quality') { s.quality = v; this.game.setQuality(v); this.dirtyWorld = true; }
-    else if (k === 'gkey') { s.gkey = v; this.dirtyWorld = true; if (this.game.google) this.game.google.lastError = ''; }
+    else if (k === 'gkey') { s.gkey = v; this.dirtyWorld = true; if (this.game) this.game.satError = ''; }
     if (k === 'assist' && this.game) this.game.assist = s.assist;
     writeSave(this.save);
   }
@@ -195,7 +214,7 @@ class App {
 
   fatal(e) {
     console.error(e);
-    this.bootMsg(`<div><div style="font-size:40px">🛠️</div><b>문제가 생겼습니다</b><div style="color:#a7adb8;margin-top:8px;max-width:560px">${String((e && e.message) || e).replace(/</g, '&lt;')}</div><div style="margin-top:12px;color:#a7adb8">페이지를 새로 고쳐 보세요. WebGL을 지원하는 최신 브라우저가 필요합니다.</div></div>`);
+    this.bootMsg(`<div><b>문제가 생겼습니다</b><small>${String((e && e.message) || e).replace(/</g, '&lt;')}</small><small>페이지를 새로 고쳐 보세요.</small></div>`);
   }
 
   // ------------------------------------------------------------ 루프
@@ -207,9 +226,9 @@ class App {
       if (!this.paused) {
         const inp = this.input.read(dt, this.inp);
         if (inp.pause && this.state === 'race') this.pause();
-        g.update(dt, inp);
+        for (let i = 0; i < this.speed; i++) g.update(dt, inp);
         const racing = g.mode === 'race' || g.mode === 'finish';
-        if (racing && this.state === 'race') this.hud.update(g.hud, g, dt);
+        if (this.state === 'race' && (racing || g.mode === 'grid' || g.mode === 'countdown')) this.hud.update(g.hud, g, dt);
         if (g.player && g.grandpa) {
           const p = g.player, gp = g.grandpa;
           this.audio.update({
@@ -218,6 +237,7 @@ class App {
           });
         }
       } else this.audio.update({ racing: false, idle: false });
+      this.ui.tick(dt);
       g.render();
     } catch (e) { this.fatal(e); return; }
     requestAnimationFrame((tt) => this.loop(tt));
@@ -226,4 +246,9 @@ class App {
 
 const app = new App();
 window.__dh = app;
-app.boot().catch((e) => app.fatal(e));
+const start = (data) => { if (data && Number.isInteger(data.sel)) app.resumeSel = data.sel; app.boot().catch((e) => app.fatal(e)); };
+// 클로드 아티팩트 뷰어 안에서는 페이지가 새 버전으로 바뀔 때 보고 있던 레벨을 넘겨받는다 (뷰어 밖에서는 window.claude가 없다).
+// 돈·개조·기록은 localStorage에 있어 그대로 남는다.
+const hot = window.claude?.hot;
+try { hot?.snapshot?.(() => ({ sel: app.ui ? app.ui.sel : 1 })); } catch (e) { /* 선택 기능 */ }
+if (hot?.ready) hot.ready(start); else start(hot?.data ?? {});

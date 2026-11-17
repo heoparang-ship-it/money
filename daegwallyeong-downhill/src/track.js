@@ -163,7 +163,7 @@ export class Track {
     let HW = new Float32Array(n), BANK = new Float32Array(n);
     for (let i = 0; i < n; i++) {
       const k = Math.abs(KS[i]);
-      HW[i] = 3.8 + clamp((k - 0.012) * 45, 0, 1.4);
+      HW[i] = 5.0 + clamp((k - 0.012) * 45, 0, 1.4); // 도트 화면에서는 캐릭터를 크게 그리므로 실제(약 3.8 m)보다 넓게 잡는다
       BANK[i] = clamp(KS[i] * 1.6, -0.065, 0.065);
     }
     this.HW = boxSmooth(HW, 8, 2);
